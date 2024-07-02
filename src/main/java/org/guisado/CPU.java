@@ -29,7 +29,7 @@ public class CPU {
     private byte registerY;
 
     // Bus
-    // private Memory memory;
+    private Memory memory;
     /**
      * True for read,
      * false for write.
@@ -124,7 +124,7 @@ public class CPU {
         this.addressBus = 0;
         this.currentInstructionCycle = 0;
         this.currentCycle = 0;
-        //this.memory = new Memory64k();
+        this.memory = new Memory64k();
     }
 
     public byte getAccumulator() {
@@ -271,7 +271,6 @@ public class CPU {
             }
             case 2 -> {
                 this.addressBus = this.programCounter;
-                this.programCounter++;
                 // Fetches next OP code and ignores it
                 this.dataBus = this.readAtProgramCounter();
                 this.incrementCycles();
