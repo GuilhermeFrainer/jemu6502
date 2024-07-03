@@ -1,7 +1,7 @@
 package org.guisado;
 
 public class Memory64k implements Memory {
-    private byte[] memory;
+    private final byte[] memory;
 
     public Memory64k() {
         this.memory = new byte[0x10000];

@@ -28,19 +28,19 @@ public class CPU {
     private byte registerX;
     private byte registerY;
 
+    public enum ReadWrite {
+        Read,
+        Write;
+    }
+
     // Bus
-    private Memory memory;
-    /**
-     * True for read,
-     * false for write.
-     */
-    // MAKE THIS AN ENUM
-    private boolean readWrite;
+    private ReadWrite readWritePin;
     private byte dataBus;
     private short addressBus;
+    public boolean breakSign;
 
-    public boolean getReadWrite() {
-        return this.readWrite;
+    public ReadWrite getReadWritePin() {
+        return this.readWritePin;
     }
 
     public byte getDataBus() {
@@ -54,12 +54,6 @@ public class CPU {
     public void setDataBus(byte number) {
         this.dataBus = number;
     }
-
-    /* probably useless
-    public void setAddressBus(short address) {
-        this.addressBus = address;
-    }
-    */
 
     // Abstractions
     private Instruction currentInstruction;
@@ -124,7 +118,7 @@ public class CPU {
         this.addressBus = 0;
         this.currentInstructionCycle = 0;
         this.currentCycle = 0;
-        this.memory = new Memory64k();
+        this.breakSign = false;
     }
 
     public byte getAccumulator() {
@@ -136,57 +130,95 @@ public class CPU {
     }
 
     /**
-     * Runs the program loaded in memory.
-     */
-    public void run() throws UnimplementedInstructionException, IllegalAddressingModeException, IllegalCycleException {
-        do {
-            if (this.currentInstruction == null || this.instructionFinishedRunning()) {
-                System.out.println("Fetching instruction " + ((int) this.readAtProgramCounter() & 0xFF) + " at " + this.programCounter);
-                this.currentInstruction = this.fetchInstruction(this.readAtProgramCounter());
-
-                this.currentInstructionCycle = 1;
-            }
-            this.interpret();
-        } while (this.currentInstruction.getOpcode() != 0x00);
-    }
-
-    /**
-     * Loads program in memory.
-     * @param program byte array representing program to be loaded in memory.
-     */
-    public void load(byte[] program) {
-        for (int i = 0; i < program.length; i++) {
-            this.memory.write(program[i], (short) i);
-        }
-    }
-
-    /**
-     * Fetches instruction at 'instructionSet'.
+     * Gets the instruction from the 'instructionSet' based on opcode.
      * @param opcode opcodes are used as indexes in the array.
      * @return the fetched instruction.
      */
-    private Instruction fetchInstruction(byte opcode) {
+    private Instruction getInstructionFromOpcode(byte opcode) {
         return instructionSet[(int) opcode & 0xFF];
     }
 
+    /* ================
+     * MEMORY FUNCTIONS
+     ================== */
+
     /**
-     * Reads memory at the address stored in the program counter register
-     * and returns the value therein.
-     * @return byte stored at 'programCounter'.
+     * Fetches next instruction directly from the data bus.
+     * Resets currentInstructionCycle to 1.
      */
-    private byte readAtProgramCounter() {
-        return this.memory.read(this.programCounter);
+    private void fetchInstruction() {
+        this.currentInstruction = this.getInstructionFromOpcode(this.dataBus);
+        this.currentInstructionCycle = 1;
     }
 
     /**
-     * Interprets the current instruction.
+     * Loads the first instruction into memory based on its opcode.
+     * Should be refactored at some point.
+     * @param opcode
      */
-    private void interpret()
+    public void setFirstInstruction(byte opcode) {
+        this.currentInstruction = this.getInstructionFromOpcode(opcode);
+        this.currentInstructionCycle = 1;
+        this.programCounter = 0; // This is ugly and should be fixed at some point,
+                                  // but it is needed for now.
+    }
+
+    /* =========================
+     * SET STATUS FLAG FUNCTIONS
+     =========================== */
+
+    private void setNegative() {this.status |= NEGATIVE;}
+
+    private void setOverflow() {this.status |= OVERFLOW;}
+
+    private void setExpansion() {this.status |= EXPANSION;}
+
+    private void setBreak() {this.status |= BREAK;}
+
+    private void setDecimal() {this.status |= DECIMAL;}
+
+    private void setInterruptDisable() {this.status |= INTERRUPT_DISABLE;}
+
+    private void setZero() {this.status |= ZERO;}
+
+    private void setCarry() {this.status |= CARRY;}
+
+    /* ===========================
+     * UNSET STATUS FLAG FUNCTIONS
+     ============================= */
+
+    private void unsetNegative() {this.status &= ~NEGATIVE;}
+
+    private void unsetOverflow() {this.status &= ~OVERFLOW;}
+
+    private void unsetExpansion() {this.status &= ~EXPANSION;}
+
+    private void unsetBreak() {this.status &= ~BREAK;}
+
+    private void unsetDecimal() {this.status &= ~DECIMAL;}
+
+    private void unsetInterruptDisable() {this.status &= ~INTERRUPT_DISABLE;}
+
+    private void unsetZero() {this.status &= ~ZERO;}
+
+    private void unsetCarry() {this.status &= ~CARRY;}
+
+    /**
+     * Executes the next cycle.
+     */
+    public void tick()
             throws UnimplementedInstructionException, IllegalAddressingModeException, IllegalCycleException {
+        if (this.instructionFinishedRunning()) {
+            this.fetchInstruction();
+        }
+
+        if (this.currentInstruction == null) {
+            throw new UnimplementedInstructionException("Unimplemented opcode: "
+            + String.format("0x%02X", (int) this.dataBus & 0xFF));
+        }
+
         switch ((int) this.currentInstruction.getOpcode() & 0xFF) {
-            case 0x00 -> {
-                return;
-            }
+            case 0x00 -> this.breakSign = true;
             case 0xE8 -> this.inx();
             case 0xA9 -> this.lda();
             case 0xAA -> this.tax();
@@ -256,6 +288,9 @@ public class CPU {
      * GENERIC INSTRUCTION FUNCTIONS
      =============================== */
 
+    // At each case, the command above it between quotation marks
+    // are extracted from this cycle-by-cycle guide of the NES dev wiki: https://www.nesdev.org/6502_cpu.txt
+
     /**
      * Function to generically represent the cycle-to-cycle behavior of the CPU
      * for instructions with implied addressing mode.
@@ -263,16 +298,15 @@ public class CPU {
      */
     private void genericImpliedAddressing() throws IllegalCycleException {
         switch (this.currentInstructionCycle) {
+            // "Fetch opcode, increment PC"
             case 1 -> {
-                this.addressBus = this.programCounter;
-                this.dataBus = this.currentInstruction.getOpcode();
+                this.readWritePin = ReadWrite.Read;
                 this.programCounter++;
                 this.incrementCycles();
             }
+            // "Read next instruction byte (and throw it away)"
             case 2 -> {
                 this.addressBus = this.programCounter;
-                // Fetches next OP code and ignores it
-                this.dataBus = this.readAtProgramCounter();
                 this.incrementCycles();
             }
             default -> throw new IllegalCycleException(this);
@@ -281,62 +315,25 @@ public class CPU {
 
     private void genericImmediateAddressing() throws IllegalCycleException {
         switch (this.currentInstructionCycle) {
+            // "Fetch opcode, increment PC"
             case 1 -> {
-                this.addressBus = this.programCounter;
-                this.dataBus = this.currentInstruction.getOpcode();
+                this.readWritePin = ReadWrite.Read;
                 this.programCounter++;
+                this.addressBus = this.programCounter;
+                //this.programCounter++;
                 this.incrementCycles();
             }
+            // "Fetch value, increment PC"
             case 2 -> {
-                this.dataBus = this.readAtProgramCounter();
-                this.addressBus = this.programCounter;
                 this.programCounter++;
+                this.addressBus = this.programCounter;
+                //this.programCounter++;
                 this.incrementCycles();
             }
             default -> throw new IllegalCycleException("This instruction accepts at most "
-            + this.currentInstruction.getCycles() + ", received " + this.currentInstructionCycle);
+                    + this.currentInstruction.getCycles() + ", received " + this.currentInstructionCycle);
         }
     }
-
-    /* =========================
-     * SET STATUS FLAG FUNCTIONS
-     =========================== */
-
-    private void setNegative() {this.status |= NEGATIVE;}
-
-    private void setOverflow() {this.status |= OVERFLOW;}
-
-    private void setExpansion() {this.status |= EXPANSION;}
-
-    private void setBreak() {this.status |= BREAK;}
-
-    private void setDecimal() {this.status |= DECIMAL;}
-
-    private void setInterruptDisable() {this.status |= INTERRUPT_DISABLE;}
-
-    private void setZero() {this.status |= ZERO;}
-
-    private void setCarry() {this.status |= CARRY;}
-
-    /* ===========================
-     * UNSET STATUS FLAG FUNCTIONS
-     ============================= */
-
-    private void unsetNegative() {this.status &= ~NEGATIVE;}
-
-    private void unsetOverflow() {this.status &= ~OVERFLOW;}
-
-    private void unsetExpansion() {this.status &= ~EXPANSION;}
-
-    private void unsetBreak() {this.status &= ~BREAK;}
-
-    private void unsetDecimal() {this.status &= ~DECIMAL;}
-
-    private void unsetInterruptDisable() {this.status &= ~INTERRUPT_DISABLE;}
-
-    private void unsetZero() {this.status &= ~ZERO;}
-
-    private void unsetCarry() {this.status &= ~CARRY;}
 
     /* ================
      * HELPER FUNCTIONS
@@ -349,8 +346,7 @@ public class CPU {
      * @return true if current instruction is in its last cycle, false otherwise.
      */
     private boolean instructionFinishedRunning() {
-        if (this.currentInstructionCycle == this.currentInstruction.getCycles() + 1) return true;
-        else return false;
+        return this.currentInstructionCycle == this.currentInstruction.getCycles() + 1;
     }
 
     /**
