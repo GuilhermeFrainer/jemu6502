@@ -60,6 +60,10 @@ public class CPU {
     private int currentInstructionCycle;
     private int currentCycle;
 
+    public void setCurrentInstructionCycle(int cycle) {
+        this.currentInstructionCycle = cycle;
+    }
+
     /* ==================
      * SPECIAL EXCEPTIONS
      ==================== */
@@ -116,9 +120,10 @@ public class CPU {
         this.currentInstruction = null;
         this.dataBus = 0;
         this.addressBus = 0;
-        this.currentInstructionCycle = 0;
+        this.currentInstructionCycle = 1;
         this.currentCycle = 0;
         this.breakSign = false;
+        this.readWritePin = ReadWrite.Read;
     }
 
     public byte getAccumulator() {
@@ -130,38 +135,18 @@ public class CPU {
     }
 
     /**
-     * Gets the instruction from the 'instructionSet' based on opcode.
-     * @param opcode opcodes are used as indexes in the array.
+     * Fetches the instruction from the 'instructionSet' based on opcode
+     * currently in the data bus.
      * @return the fetched instruction.
      */
-    private Instruction getInstructionFromOpcode(byte opcode) {
-        return instructionSet[(int) opcode & 0xFF];
+    private Instruction fetchInstruction() {
+        return instructionSet[(int) this.dataBus & 0xFF];
     }
 
     /* ================
      * MEMORY FUNCTIONS
      ================== */
 
-    /**
-     * Fetches next instruction directly from the data bus.
-     * Resets currentInstructionCycle to 1.
-     */
-    private void fetchInstruction() {
-        this.currentInstruction = this.getInstructionFromOpcode(this.dataBus);
-        this.currentInstructionCycle = 1;
-    }
-
-    /**
-     * Loads the first instruction into memory based on its opcode.
-     * Should be refactored at some point.
-     * @param opcode
-     */
-    public void setFirstInstruction(byte opcode) {
-        this.currentInstruction = this.getInstructionFromOpcode(opcode);
-        this.currentInstructionCycle = 1;
-        this.programCounter = 0; // This is ugly and should be fixed at some point,
-                                  // but it is needed for now.
-    }
 
     /* =========================
      * SET STATUS FLAG FUNCTIONS
@@ -208,25 +193,50 @@ public class CPU {
      */
     public void tick()
             throws UnimplementedInstructionException, IllegalAddressingModeException, IllegalCycleException {
-        if (this.instructionFinishedRunning()) {
-            this.fetchInstruction();
+        System.out.println("Current instruction cycle: " + this.currentInstructionCycle);
+        System.out.println("Current cycle: " + this.currentCycle);
+        System.out.println("Accumulator: " + String.format("0x%02X", this.accumulator));
+        System.out.println("Register X: " + String.format("0x%02X", this.registerX));
+        /* The first cycle in every single instruction
+         * consists of fetching the next opcode and incrementing the program counter.
+         */
+        if (this.currentInstructionCycle == 1) {
+            System.out.println("Fetching instruction: " + this.fetchInstruction().getMnemonic());
+            this.currentInstruction = this.fetchInstruction();
+            this.programCounter++;
+            this.addressBus = this.programCounter;
         }
 
         if (this.currentInstruction == null) {
             throw new UnimplementedInstructionException("Unimplemented opcode: "
-            + String.format("0x%02X", (int) this.dataBus & 0xFF));
+                    + String.format("0x%02X", (int) this.dataBus & 0xFF));
         }
 
-        switch ((int) this.currentInstruction.getOpcode() & 0xFF) {
-            case 0x00 -> this.breakSign = true;
-            case 0xE8 -> this.inx();
-            case 0xA9 -> this.lda();
-            case 0xAA -> this.tax();
-            default -> {
-                throw new UnimplementedInstructionException(
-                        "Instruction not implemented: " + this.currentInstruction.getOpcode());
+        if (this.currentInstructionCycle > 1) {
+            System.out.println("Running instruction: " + this.currentInstruction.getMnemonic());
+            switch ((int) this.currentInstruction.getOpcode() & 0xFF) {
+                case 0x00 -> {
+                    System.out.println("CPU IS GOING FOR A HALT NOW.");
+                    this.breakSign = true;
+                }
+                case 0xE8 -> this.inx();
+                case 0xA9 -> this.lda();
+                case 0xAA -> this.tax();
+                default -> {
+                    throw new UnimplementedInstructionException(
+                            "Instruction not implemented: " + this.currentInstruction.getOpcode());
+                }
             }
         }
+        // Checks if the current instruction has finished running.
+        if (this.currentInstructionCycle == this.currentInstruction.getCycles()) {
+            this.addressBus = this.programCounter;
+            this.currentInstructionCycle = 0;
+            this.readWritePin = ReadWrite.Read;
+        }
+        this.currentInstructionCycle++;
+        this.currentCycle++;
+        System.out.println("***********\n");
     }
 
     /* =====================
@@ -240,7 +250,7 @@ public class CPU {
 
     private void inx() throws IllegalCycleException {
         this.genericImpliedAddressing();
-        if (this.instructionFinishedRunning()) {
+        if (this.currentInstructionCycle == this.currentInstruction.getCycles()) {
             this.registerX++;
             this.updateZeroAndNegativeFlags(this.registerX);
         }
@@ -260,7 +270,7 @@ public class CPU {
             case Immediate -> this.genericImmediateAddressing();
             default -> throw new IllegalAddressingModeException(this);
         }
-        if (this.instructionFinishedRunning()) {
+        if (this.currentInstructionCycle == this.currentInstruction.getCycles()) {
             this.accumulator = this.dataBus;
             this.updateZeroAndNegativeFlags(this.accumulator);
         }
@@ -278,7 +288,7 @@ public class CPU {
      */
     private void tax() throws IllegalCycleException {
         this.genericImpliedAddressing();
-        if (this.instructionFinishedRunning()) {
+        if (this.currentInstructionCycle == this.currentInstruction.getCycles()) {
             this.registerX = this.accumulator;
             this.updateZeroAndNegativeFlags(this.registerX);
         }
@@ -288,8 +298,11 @@ public class CPU {
      * GENERIC INSTRUCTION FUNCTIONS
      =============================== */
 
-    // At each case, the command above it between quotation marks
-    // are extracted from this cycle-by-cycle guide of the NES dev wiki: https://www.nesdev.org/6502_cpu.txt
+    /* At each case, the command above it between quotation marks
+     * are extracted from this cycle-by-cycle guide of the NES dev wiki:
+     * https://www.nesdev.org/6502_cpu.txt
+     */
+
 
     /**
      * Function to generically represent the cycle-to-cycle behavior of the CPU
@@ -298,16 +311,9 @@ public class CPU {
      */
     private void genericImpliedAddressing() throws IllegalCycleException {
         switch (this.currentInstructionCycle) {
-            // "Fetch opcode, increment PC"
-            case 1 -> {
-                this.readWritePin = ReadWrite.Read;
-                this.programCounter++;
-                this.incrementCycles();
-            }
             // "Read next instruction byte (and throw it away)"
             case 2 -> {
                 this.addressBus = this.programCounter;
-                this.incrementCycles();
             }
             default -> throw new IllegalCycleException(this);
         }
@@ -315,20 +321,10 @@ public class CPU {
 
     private void genericImmediateAddressing() throws IllegalCycleException {
         switch (this.currentInstructionCycle) {
-            // "Fetch opcode, increment PC"
-            case 1 -> {
-                this.readWritePin = ReadWrite.Read;
-                this.programCounter++;
-                this.addressBus = this.programCounter;
-                //this.programCounter++;
-                this.incrementCycles();
-            }
             // "Fetch value, increment PC"
             case 2 -> {
-                this.programCounter++;
                 this.addressBus = this.programCounter;
-                //this.programCounter++;
-                this.incrementCycles();
+                this.programCounter++;
             }
             default -> throw new IllegalCycleException("This instruction accepts at most "
                     + this.currentInstruction.getCycles() + ", received " + this.currentInstructionCycle);
@@ -338,24 +334,6 @@ public class CPU {
     /* ================
      * HELPER FUNCTIONS
      ================== */
-
-    /**
-     * Checks if the instruction has finished running (i.e. it's past its last cycle)
-     * This is important cause instructions which use generic functions will perform its action
-     * only in the last cycle.
-     * @return true if current instruction is in its last cycle, false otherwise.
-     */
-    private boolean instructionFinishedRunning() {
-        return this.currentInstructionCycle == this.currentInstruction.getCycles() + 1;
-    }
-
-    /**
-     * Increments both the overall cycle counter and the current instruction cycle counter.
-     */
-    private void incrementCycles() {
-        this.currentInstructionCycle++;
-        this.currentCycle++;
-    }
 
     /**
      * Sets zero flag if 'number' == 0,
