@@ -1,10 +1,10 @@
 package org.guisado;
 
 /**
- * Represents the CPU.
+ * Represents the MOS6502.
  * Registers should all be interpreted as unsigned 8-bit ints.
  */
-public class CPU {
+public class MOS6502 {
     // Status register flags
     private static final byte NEGATIVE = (byte) 0b10000000;
     private static final byte OVERFLOW = 0b01000000;
@@ -18,6 +18,11 @@ public class CPU {
     private static final byte ZERO = 0b00000010;
     private static final byte CARRY = 0b00000001;
 
+    private static final short STACK_PAGE = 0x100;
+    private static final byte STARTING_STACK_POINTER = (byte) 0xFF;
+    private static final short IRQ_VECTOR_LOW = (short) 0xFFFE;
+    private static final short IRQ_VECTOR_HIGH = (short) 0xFFFF;
+
     private static final Instruction[] instructionSet = Instruction.initializeInstructionSet();
 
     // Registers
@@ -27,6 +32,82 @@ public class CPU {
     private byte accumulator;
     private byte registerX;
     private byte registerY;
+
+    /* Getters and setters for the CPU register fields.
+     * For now, they're only used for testing purposes.
+     */
+
+    protected short getProgramCounter() {
+        return this.programCounter;
+    }
+
+    protected int getProgramCounterAsInt() {
+        return (int) this.programCounter & 0xFFFF;
+    }
+
+    protected void setProgramCounter(short address) {
+        this.programCounter = address;
+    }
+
+    protected byte getStackPointer() {
+        return this.stackPointer;
+    }
+
+    protected int getStackPointerAsInt() {
+        return (int) this.stackPointer & 0xFF;
+    }
+
+    protected void setStackPointer(byte value) {
+        this.stackPointer = value;
+    }
+
+    protected byte getStatus() {
+        return this.status;
+    }
+
+    protected int getStatusAsInt() {
+        return (int) this.status & 0xFF;
+    }
+
+    protected void setStatus(byte value) {
+        this.status = value;
+    }
+
+    protected byte getAccumulator() {
+        return this.accumulator;
+    }
+
+    protected int getAccumulatorAsInt() {
+        return (int) this.accumulator & 0xFF;
+    }
+
+    protected void setAccumulator(byte value) {
+        this.accumulator = value;
+    }
+
+    protected byte getRegisterX() {
+        return this.registerX;
+    }
+
+    protected int getRegisterXAsInt() {
+        return (int) this.registerX & 0xFF;
+    }
+
+    protected void setRegisterX(byte value) {
+        this.registerX = value;
+    }
+
+    protected byte getRegisterY() {
+        return this.registerY;
+    }
+
+    protected int getRegisterYAsInt() {
+        return (int) this.registerY & 0xFF;
+    }
+
+    protected void setRegisterY(byte value) {
+        this.registerY = value;
+    }
 
     public enum ReadWrite {
         Read,
@@ -43,12 +124,16 @@ public class CPU {
         return this.readWritePin;
     }
 
-    public byte getDataBus() {
-        return dataBus;
-    }
-
     public short getAddressBus() {
         return this.addressBus;
+    }
+
+    public void setAddressBus(short value) {
+        this.addressBus = value;
+    }
+
+    public byte getDataBus() {
+        return dataBus;
     }
 
     public void setDataBus(byte number) {
@@ -76,7 +161,7 @@ public class CPU {
         private IllegalAddressingModeException(String message) {
             super(message);
         }
-        private IllegalAddressingModeException(CPU cpu) {
+        private IllegalAddressingModeException(MOS6502 cpu) {
             super(
               "Instruction " + cpu.currentInstruction.getMnemonic() +
                       " received unimplemented addressing mode " +
@@ -93,7 +178,7 @@ public class CPU {
         private IllegalCycleException(String message) {
             super(message);
         }
-        private IllegalCycleException(CPU cpu) {
+        private IllegalCycleException(MOS6502 cpu) {
             super("Instruction " + cpu.currentInstruction.getMnemonic() +
                     " with opcode " +
                     String.format("0x%02X", cpu.currentInstruction.getOpcode()) +
@@ -110,10 +195,10 @@ public class CPU {
         }
     }
 
-    public CPU() {
+    public MOS6502() {
         this.programCounter = 0;
         this.stackPointer = 0;
-        this.status = 0;
+        this.status = STARTING_STACK_POINTER;
         this.accumulator = 0;
         this.registerX = 0;
         this.registerY = 0;
@@ -126,12 +211,13 @@ public class CPU {
         this.readWritePin = ReadWrite.Read;
     }
 
-    public byte getAccumulator() {
-        return this.accumulator;
-    }
-
-    public byte getRegisterX() {
-        return this.registerX;
+    /**
+     * Initializes MOS6502, preparing it to run the program.
+     * @param opcode Opcode of the first instruction.
+     */
+    public void init(byte opcode) {
+        this.dataBus = opcode;
+        this.currentInstructionCycle = 1;
     }
 
     /**
@@ -188,20 +274,40 @@ public class CPU {
 
     private void unsetCarry() {this.status &= ~CARRY;}
 
+    /* ===============
+     * STACK FUNCTIONS
+     ================= */
+
+    /**
+     * Pushes value onto the stack.
+     * @param value Value to be pushed.
+     */
+    private void stackPush(byte value) {
+        this.addressBus = (short) (STACK_PAGE + this.stackPointer);
+        this.dataBus = value;
+        this.readWritePin = ReadWrite.Write;
+        this.stackPointer--;
+    }
+
+    /**
+     * Pops value from the stack.
+     * Value will be written to the data bus.
+     */
+    private void stackPop() {
+        this.stackPointer++;
+        this.addressBus = (short) (STACK_PAGE + this.stackPointer);
+        this.readWritePin = ReadWrite.Read;
+    }
+
     /**
      * Executes the next cycle.
      */
     public void tick()
             throws UnimplementedInstructionException, IllegalAddressingModeException, IllegalCycleException {
-        System.out.println("Current instruction cycle: " + this.currentInstructionCycle);
-        System.out.println("Current cycle: " + this.currentCycle);
-        System.out.println("Accumulator: " + String.format("0x%02X", this.accumulator));
-        System.out.println("Register X: " + String.format("0x%02X", this.registerX));
         /* The first cycle in every single instruction
          * consists of fetching the next opcode and incrementing the program counter.
          */
         if (this.currentInstructionCycle == 1) {
-            System.out.println("Fetching instruction: " + this.fetchInstruction().getMnemonic());
             this.currentInstruction = this.fetchInstruction();
             this.programCounter++;
             this.addressBus = this.programCounter;
@@ -213,10 +319,8 @@ public class CPU {
         }
 
         if (this.currentInstructionCycle > 1) {
-            System.out.println("Running instruction: " + this.currentInstruction.getMnemonic());
             switch ((int) this.currentInstruction.getOpcode() & 0xFF) {
                 case 0x00 -> {
-                    System.out.println("CPU IS GOING FOR A HALT NOW.");
                     this.breakSign = true;
                 }
                 case 0xE8 -> this.inx();
@@ -236,18 +340,64 @@ public class CPU {
         }
         this.currentInstructionCycle++;
         this.currentCycle++;
-        System.out.println("***********\n");
     }
 
     /* =====================
      * INSTRUCTION FUNCTIONS
      ======================= */
 
+    /* =====
+     * BREAK
+     ======= */
+
+    /**
+     * Forces interrupt request. PC and processor status are pushed to the stack
+     * and IRQ interrupt vector at $FFFE/F is loaded into PC and the break flag
+     * in the status is set to one.
+     */
+    private void brk() throws IllegalCycleException {
+        switch (this.currentInstructionCycle) {
+            /* "Read next instruction byte and throw it away,
+             * increment PC."
+             */
+            case 2 -> {
+                this.programCounter++;
+            }
+            // "Push PCH on stack (with B flag set), decrement S"
+            case 3 -> {
+                this.setBreak();
+                this.stackPush((byte) (this.programCounter >> 8));
+            }
+            // "Push PCL on stack, decrement S"
+            case 4 -> {
+                this.stackPush((byte) (this.programCounter & 0xFF));
+            }
+            // "Push P on stack, decrement S"
+            case 5 -> {
+                this.stackPush(this.status);
+            }
+            // "Fetch PCL"
+            case 6 -> {
+                this.addressBus = IRQ_VECTOR_LOW;
+                this.readWritePin = ReadWrite.Read;
+            }
+            // "Fetch PCH"
+            case 7 -> {
+                this.addressBus = IRQ_VECTOR_HIGH;
+            }
+            default -> throw new IllegalCycleException(this);
+        }
+    }
+
 
     /* ======================
      * INCREMENT INSTRUCTIONS
      ======================== */
 
+    /**
+     * Adds one to register X and sets the zero and negative flags as appropriate.
+     * @throws IllegalCycleException
+     */
     private void inx() throws IllegalCycleException {
         this.genericImpliedAddressing();
         if (this.currentInstructionCycle == this.currentInstruction.getCycles()) {
@@ -261,7 +411,7 @@ public class CPU {
      =================== */
 
     /**
-     * Loads byte into accumulator register
+     * Loads byte into accumulator register.
      * @throws IllegalAddressingModeException in case the instruction has an unimplemented addressing mode.
      * @throws IllegalCycleException in case the instruction reaches an unimplemented cycle.
      */
@@ -305,7 +455,7 @@ public class CPU {
 
 
     /**
-     * Function to generically represent the cycle-to-cycle behavior of the CPU
+     * Function to generically represent the cycle-to-cycle behavior of the MOS6502
      * for instructions with implied addressing mode.
      * @throws IllegalCycleException in case the instruction reaches and unimplemented cycle.
      */

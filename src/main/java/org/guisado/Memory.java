@@ -1,7 +1,7 @@
 package org.guisado;
 
 /**
- * Interface used to represent the CPU's memory.
+ * Interface used to represent the MOS6502's memory.
  * Needed cause the tests I'm going to run assume all 64kBs exist,
  * while the NES doesn't actually have that much memory.
  */
@@ -21,4 +21,6 @@ public interface Memory {
      *                Will be interpreted as an unsigned 16-bit int.
      */
     public void write(byte value, short address);
+
+    byte[] getRam();
 }

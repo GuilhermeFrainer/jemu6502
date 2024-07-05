@@ -1,0 +1,199 @@
+package org.guisado;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+import org.junit.jupiter.api.Test;
+
+import java.io.File;
+
+import java.io.FileNotFoundException;
+import java.util.ArrayList;
+import java.util.Scanner;
+
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+class ControllerUnitTest {
+    private static final String pathToTests = "C:\\Users\\guisf\\Downloads\\65x02\\6502\\v1";
+    private ControllerUnit emulator;
+
+    private class JsonTestCase {
+        String name;
+        CPUState before;
+        CPUState after;
+        ArrayList<CycleAction> cycles;
+
+        JsonTestCase(JSONObject jsonObject) {
+            this.name = jsonObject.getString("name");
+            this.before = new CPUState(jsonObject.getJSONObject("initial"));
+            this.after = new CPUState(jsonObject.getJSONObject("final"));
+
+            this.cycles = new ArrayList<CycleAction>();
+            JSONArray cycleArray = jsonObject.getJSONArray("cycles");
+            for (Object c: cycleArray) {
+                this.cycles.add(new CycleAction((JSONArray) c));
+            }
+        }
+    }
+
+    class CPUState {
+        short programCounter;
+        byte stackPointer; // S
+        byte accumulator;
+        byte registerX;
+        byte registerY;
+        byte status; // P
+        byte[] ram;
+
+        CPUState(JSONObject jsonObject) {
+            this.programCounter = (short) jsonObject.getInt("pc");
+            this.stackPointer = (byte) jsonObject.getInt("s");
+            this.accumulator = (byte) jsonObject.getInt("a");
+            this.registerX = (byte) jsonObject.getInt("x");
+            this.registerY = (byte) jsonObject.getInt("y");
+            this.status = (byte) jsonObject.getInt("p");
+
+            this.ram = new byte[0x10000];
+            JSONArray jsonRam = jsonObject.getJSONArray("ram");
+            for (Object m: jsonRam) {
+                MemoryByte mB = new MemoryByte((JSONArray) m);
+                this.ram[(int) mB.address & 0xFFFF] = mB.value;
+            }
+        }
+    }
+
+    class MemoryByte {
+        short address;
+        byte value;
+
+        MemoryByte(JSONArray array) {
+            this.address = (short) array.getInt(0);
+            this.value = (byte) array.getInt(1);
+        }
+    }
+
+    class CycleAction {
+        short address;
+        byte value;
+        MOS6502.ReadWrite type;
+
+        CycleAction(JSONArray array) {
+            this.address = (short) array.getInt(0);
+            this.value = (byte) array.getInt(1);
+            if (array.getString(2).equals("read")) {
+                this.type = MOS6502.ReadWrite.Read;
+            } else if (array.getString(2).equals("write")) {
+                this.type = MOS6502.ReadWrite.Write;
+            } else {
+                throw new IllegalArgumentException("Invalid action in JSON array: " + array.get(2));
+            }
+        }
+    }
+
+    //@Test
+    void testAllInstructions()
+            throws MOS6502.UnimplementedInstructionException,
+            FileNotFoundException, MOS6502.IllegalAddressingModeException,
+            MOS6502.IllegalCycleException {
+        File testDir = new File(pathToTests);
+        for (File file: testDir.listFiles())
+            testRunInstruction(file);
+    }
+
+    @Test
+    void testInstruction()
+        throws MOS6502.UnimplementedInstructionException,
+            FileNotFoundException,
+            MOS6502.IllegalCycleException,
+            MOS6502.IllegalAddressingModeException {
+        String instruction = "\\a9.json";
+        File testFile = new File(pathToTests + instruction);
+        testRunInstruction(testFile);
+    }
+
+    void testRunInstruction(File testFile)
+            throws FileNotFoundException,
+            MOS6502.UnimplementedInstructionException,
+            MOS6502.IllegalAddressingModeException,
+            MOS6502.IllegalCycleException {
+        Scanner reader = new Scanner(testFile);
+        reader.nextLine(); // Skips the first line, which only contains '['
+
+        while (reader.hasNextLine()) {
+            String line = reader.nextLine();
+            try {
+                this.runTestCase(line);
+            } catch (JSONException e) {
+                if (line.equals("]")) {
+                    return;
+                }
+                else {
+                    throw e;
+                }
+            }
+        }
+        reader.close();
+    }
+
+    void runTestCase(String line)
+            throws MOS6502.UnimplementedInstructionException,
+            MOS6502.IllegalAddressingModeException,
+            MOS6502.IllegalCycleException {
+        JsonTestCase testCase = new JsonTestCase(new JSONObject(line));
+        ControllerUnit emulator = new ControllerUnit();
+
+        // Load test case into emulator
+        emulator.cpu.setProgramCounter(testCase.before.programCounter);
+        emulator.cpu.setStackPointer(testCase.before.stackPointer);
+        emulator.cpu.setAccumulator(testCase.before.accumulator);
+        emulator.cpu.setRegisterX(testCase.before.registerX);
+        emulator.cpu.setRegisterY(testCase.before.registerY);
+        emulator.cpu.setStatus(testCase.before.status);
+
+        // Load program into memory
+        emulator.load(testCase.before.ram);
+
+        // Sets address bus to program counter
+        // Doing this ensures the first instruction is properly loaded
+        emulator.cpu.setAddressBus(emulator.cpu.getProgramCounter());
+        emulator.cpu.setDataBus(emulator.memory.read(emulator.cpu.getProgramCounter()));
+
+        // Runs test case
+        emulator.runOneInstruction();
+
+        // Comparison
+        String message = "Test case " + testCase.name;
+
+        assertEquals(
+                (int) testCase.after.programCounter & 0xFFFF,
+                emulator.cpu.getProgramCounterAsInt(),
+                message + " at program counter"
+        );
+        assertEquals(
+                (int) testCase.after.stackPointer & 0xFF,
+                emulator.cpu.getStackPointerAsInt(),
+                message + " at stack pointer (S)"
+        );
+        assertEquals(
+                (int) testCase.after.accumulator & 0xFF,
+                emulator.cpu.getAccumulatorAsInt(),
+                message + " at accumulator"
+        );
+        assertEquals(
+                (int) testCase.after.registerX & 0xFF,
+                emulator.cpu.getRegisterXAsInt(),
+                message + " at register X"
+        );
+        assertEquals(
+                (int) testCase.after.registerY & 0xFF,
+                emulator.cpu.getRegisterYAsInt(),
+                message + " at register Y"
+        );
+        assertArrayEquals(
+                testCase.after.ram,
+                emulator.memory.getRam(),
+                message + " at RAM"
+        );
+    }
+}
