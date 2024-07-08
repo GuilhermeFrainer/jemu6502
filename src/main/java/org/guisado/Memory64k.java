@@ -13,15 +13,16 @@ public class Memory64k implements Memory {
 
     @Override
     public byte read(short address) {
-        // Converts to int because shorts are signed
-        int addr = (int) address & 0xFFFF;
-        return this.ram[addr];
+        return this.ram[(int) address & 0xFFFF];
     }
 
     @Override
     public void write(byte value, short address) {
         // Converts to int because shorts are signed
-        int addr = (int) address & 0xFFFF;
-        this.ram[addr] = value;
+        this.ram[(int) address & 0xFFFF] = value;
+    }
+
+    public int readAsInt(short address) {
+        return this.ram[address & 0xFFFF] & 0xFF;
     }
 }

@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class ControllerUnitTest {
-    private static final String pathToTests = "C:\\Users\\guisf\\Downloads\\65x02\\6502\\v1";
+    private static final String pathToTests = "..\\65x02\\6502\\v1";
     private ControllerUnit emulator;
 
     private class JsonTestCase {
@@ -61,6 +61,30 @@ class ControllerUnitTest {
                 this.ram[(int) mB.address & 0xFFFF] = mB.value;
             }
         }
+
+        int getProgramCounterAsInt() {
+            return this.programCounter & 0xFFFF;
+        }
+
+        int getStackPointerAsInt() {
+            return this.stackPointer & 0xFF;
+        }
+
+        int getAccumulatorAsInt() {
+            return this.accumulator & 0xFF;
+        }
+
+        int getRegisterXAsInt() {
+            return this.registerX & 0xFF;
+        }
+
+        int getRegisterYAsInt() {
+            return this.registerY & 0xFF;
+        }
+
+        int getStatusAsInt() {
+            return this.status & 0xFF;
+        }
     }
 
     class MemoryByte {
@@ -89,6 +113,37 @@ class ControllerUnitTest {
                 throw new IllegalArgumentException("Invalid action in JSON array: " + array.get(2));
             }
         }
+
+        int getAddressAsInt() {
+            return this.address & 0xFFFF;
+        }
+
+        int getValueAsInt() {
+            return this.value & 0xFF;
+        }
+    }
+
+    @Test
+    void testReadAndWrite() {
+        /**
+         * Extracted from test case 00 3f f7.
+         */
+        int[][] program = {{35714, 0}, {35715, 63}, {35716, 247}, {65534, 212}, {65535, 37}, {9684, 237}};
+        ControllerUnit emulator = new ControllerUnit();
+
+        for (int i = 0; i < program.length; i++) {
+            short address = (short) program[i][0];
+            byte value = (byte) program[i][1];
+            //System.out.println("Writing " + value + " at " + address);
+            emulator.memory.write(value, address);
+        }
+
+        assertEquals(0, emulator.memory.readAsInt((short) 35714));
+        assertEquals(63, emulator.memory.readAsInt((short) 35715));
+        assertEquals(247, emulator.memory.readAsInt((short) 35716));
+        assertEquals(212, emulator.memory.readAsInt((short) 65534));
+        assertEquals(37, emulator.memory.readAsInt((short) 65535));
+        assertEquals(237, emulator.memory.readAsInt((short) 9684));
     }
 
     //@Test
@@ -160,10 +215,30 @@ class ControllerUnitTest {
         emulator.cpu.setDataBus(emulator.memory.read(emulator.cpu.getProgramCounter()));
 
         // Runs test case
-        emulator.runOneInstruction();
+        ArrayList<ControllerUnit.Log> logList = emulator.runOneInstructionWithLogging();
 
         // Comparison
-        String message = "Test case " + testCase.name;
+        String message = "Test case " + testCase.name
+                + String.format(" of opcode 0x%02X", emulator.cpu.getCurrentInstruction().getOpcode());
+
+        for (int i = 0; i < logList.size(); i++) {
+            assertEquals(
+                    testCase.cycles.get(i).getAddressAsInt(),
+                    logList.get(i).getAddressAsInt(),
+                    message + " at address bus at cycle " + (i + 1)
+            );
+            assertEquals(
+                    testCase.cycles.get(i).getValueAsInt(),
+                    logList.get(i).getValueAsInt(),
+                    message + " at data bus at cycle " + (i + 1)
+                    + " " + logList.get(i).getValueAsInt()
+            );
+            assertEquals(
+                    testCase.cycles.get(i).type,
+                    logList.get(i).getAction(),
+                    message + " at R/W pin at cycle " + (i + 1)
+            );
+        }
 
         assertEquals(
                 (int) testCase.after.programCounter & 0xFFFF,

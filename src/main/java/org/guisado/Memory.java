@@ -14,6 +14,8 @@ public interface Memory {
      */
     public byte read(short address);
 
+    public int readAsInt(short address);
+
     /**
      *
      * @param value Value to write at address.

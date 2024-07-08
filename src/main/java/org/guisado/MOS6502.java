@@ -145,8 +145,16 @@ public class MOS6502 {
     private int currentInstructionCycle;
     private int currentCycle;
 
+    protected Instruction getCurrentInstruction() {
+        return this.currentInstruction;
+    }
+
     public void setCurrentInstructionCycle(int cycle) {
         this.currentInstructionCycle = cycle;
+    }
+
+    public int getCurrentCycle() {
+        return this.currentCycle;
     }
 
     /* ==================
@@ -320,9 +328,7 @@ public class MOS6502 {
 
         if (this.currentInstructionCycle > 1) {
             switch ((int) this.currentInstruction.getOpcode() & 0xFF) {
-                case 0x00 -> {
-                    this.breakSign = true;
-                }
+                case 0x00 -> this.brk();
                 case 0xE8 -> this.inx();
                 case 0xA9 -> this.lda();
                 case 0xAA -> this.tax();

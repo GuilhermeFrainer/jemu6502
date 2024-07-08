@@ -1,5 +1,7 @@
 package org.guisado;
 
+import java.util.ArrayList;
+
 public class ControllerUnit {
     protected final MOS6502 cpu;
     protected final Memory memory;
@@ -38,7 +40,7 @@ public class ControllerUnit {
     }
 
     /**
-     * Loads program in memory.
+     * Loads program into memory.
      * @param program byte array representing program to be loaded in memory.
      */
     public void load(byte[] program) {
@@ -47,6 +49,13 @@ public class ControllerUnit {
         }
     }
 
+    /**
+     * Runs a single instruction.
+     * As of now, exists solely for testing.
+     * @throws MOS6502.IllegalCycleException
+     * @throws MOS6502.IllegalAddressingModeException
+     * @throws MOS6502.UnimplementedInstructionException
+     */
     protected void runOneInstruction()
             throws MOS6502.IllegalCycleException,
             MOS6502.IllegalAddressingModeException,
@@ -70,5 +79,94 @@ public class ControllerUnit {
             this.cpu.tick();
             i++;
         }
+    }
+
+    public class Log {
+        private short address;
+        private byte value;
+        private MOS6502.ReadWrite action;
+
+        public Log(short address, byte value, MOS6502.ReadWrite action) {
+            this.address = address;
+            this.value = value;
+            this.action = action;
+        }
+
+        short getAddress() {
+            return this.address;
+        }
+
+        int getAddressAsInt() {
+            return this.address & 0xFFFF;
+        }
+
+        byte getValue() {
+            return this.value;
+        }
+
+        int getValueAsInt() {
+            return this.value & 0xFF;
+        }
+
+        MOS6502.ReadWrite getAction() {
+            return this.action;
+        }
+
+        public String toString() {
+            return "Address " + String.format("0x%04X (%d)", this.address, this.getAddressAsInt())
+                    + " Value " + String.format("0x%02X (%d)", this.value, this.getValueAsInt())
+                    + " in " + this.action + " mode";
+        }
+    }
+
+    /**
+     * Runs one instruction and returns array of object containing the state
+     * of the address and data buses and of the read/write pin cycle-by-cycle.
+     * Exists solely for testing.
+     * @return
+     * @throws MOS6502.UnimplementedInstructionException
+     * @throws MOS6502.IllegalAddressingModeException
+     * @throws MOS6502.IllegalCycleException
+     */
+    protected ArrayList<Log> runOneInstructionWithLogging()
+            throws MOS6502.UnimplementedInstructionException,
+            MOS6502.IllegalAddressingModeException,
+            MOS6502.IllegalCycleException {
+        // Initialize MOS6502
+        ArrayList<Log> logArray = new ArrayList<>();
+
+        byte opcode = this.memory.read(this.cpu.getAddressBus());
+        Instruction[] instructionSet = Instruction.initializeInstructionSet();
+        Instruction instruction = instructionSet[(int) opcode & 0xFF];
+        this.cpu.init(opcode);
+
+        // Saves first log
+        //logArray.add(new Log(
+        //       this.cpu.getAddressBus(),
+        //        this.cpu.getDataBus(),
+        //        this.cpu.getReadWritePin()
+        //));
+
+        int i = 0;
+        while (i < instruction.getCycles()) {
+            if (this.cpu.getReadWritePin() == MOS6502.ReadWrite.Read) {
+                byte valueAtAddress = this.memory.read(this.cpu.getAddressBus());
+                this.cpu.setDataBus(valueAtAddress);
+            } else if (this.cpu.getReadWritePin() == MOS6502.ReadWrite.Write) {
+                byte valueInDataBus = this.cpu.getDataBus();
+                short address = this.cpu.getAddressBus();
+                this.memory.write(valueInDataBus, address);
+            }
+            logArray.add(new Log(
+                    this.cpu.getAddressBus(),
+                    this.cpu.getDataBus(),
+                    this.cpu.getReadWritePin()
+            ));
+            this.cpu.tick();
+            i++;
+            //Log lastLog = logArray.getLast();
+            //System.out.println(lastLog.toString());
+        }
+        return logArray;
     }
 }
