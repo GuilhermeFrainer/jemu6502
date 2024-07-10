@@ -232,9 +232,17 @@ public class MOS6502 {
      * Fetches the instruction from the 'instructionSet' based on opcode
      * currently in the data bus.
      * @return the fetched instruction.
+     * @param opcode the opcode of the instruction to be fetched.
+     * @throws UnimplementedInstructionException in case the instruction isn't in the array.
      */
-    private Instruction fetchInstruction() {
-        return instructionSet[(int) this.dataBus & 0xFF];
+    private Instruction fetchInstruction(byte opcode) throws UnimplementedInstructionException {
+        Instruction instruction = instructionSet[(int) opcode & 0xFF];
+        if (instruction == null) {
+            throw new UnimplementedInstructionException("Unimplemented opcode: "
+                    + String.format("0x%02X", (int) opcode & 0xFF));
+        } else {
+            return instruction;
+        }
     }
 
     /* ================
@@ -290,8 +298,9 @@ public class MOS6502 {
      * Pushes value onto the stack.
      * @param value Value to be pushed.
      */
-    private void stackPush(byte value) {
-        this.addressBus = (short) (STACK_PAGE + this.stackPointer);
+    protected void stackPush(byte value) {
+        // Must convert stack pointer to positive int
+        this.addressBus = (short) (STACK_PAGE + (this.stackPointer & 0xFF));
         this.dataBus = value;
         this.readWritePin = ReadWrite.Write;
         this.stackPointer--;
@@ -315,37 +324,63 @@ public class MOS6502 {
         /* The first cycle in every single instruction
          * consists of fetching the next opcode and incrementing the program counter.
          */
+        System.out.println("Tick: " + this.currentCycle);
+        System.out.println("PC: " + String.format("0x%04X (%d)", this.getProgramCounterAsInt(), this.getProgramCounterAsInt()));
+        System.out.println("*********\n");
         if (this.currentInstructionCycle == 1) {
-            this.currentInstruction = this.fetchInstruction();
-            this.programCounter++;
+            // Executes the previous instruction before fetching the new one
+            try {
+                this.executeOpcode(this.currentInstruction.getOpcode());
+            } catch (NullPointerException e) {
+                /* Ignores the exception if this is the first cycle,
+                 * as there wouldn't be a "previous" instruction in this situation
+                 */
+                if (this.currentCycle != 0) {
+                    throw e;
+                }
+            }
+            this.currentInstruction = this.fetchInstruction(this.dataBus);
             this.addressBus = this.programCounter;
-        }
-
-        if (this.currentInstruction == null) {
-            throw new UnimplementedInstructionException("Unimplemented opcode: "
-                    + String.format("0x%02X", (int) this.dataBus & 0xFF));
-        }
-
-        if (this.currentInstructionCycle > 1) {
+            this.programCounter++;
+        } else if (this.currentInstructionCycle > 1) {
             switch ((int) this.currentInstruction.getOpcode() & 0xFF) {
-                case 0x00 -> this.brk();
-                case 0xE8 -> this.inx();
-                case 0xA9 -> this.lda();
-                case 0xAA -> this.tax();
+                // BRK
+                case 0x00 -> this.brkCycleByCycle();
+                // LDA
+                case 0xA9 -> this.genericImmediateAddressing();
                 default -> {
                     throw new UnimplementedInstructionException(
-                            "Instruction not implemented: " + this.currentInstruction.getOpcode());
+                            String.format("Opcode not implemented: 0x%02X",
+                                    this.currentInstruction.getOpcode()));
                 }
             }
         }
         // Checks if the current instruction has finished running.
         if (this.currentInstructionCycle == this.currentInstruction.getCycles()) {
-            this.addressBus = this.programCounter;
-            this.currentInstructionCycle = 0;
+            // This might have to be fixed later
+            //this.addressBus = this.programCounter;
+            this.currentInstructionCycle = 0; // Set to 0 because it'll be incremented before the next iteration.
             this.readWritePin = ReadWrite.Read;
         }
         this.currentInstructionCycle++;
         this.currentCycle++;
+    }
+
+    /**
+     * Executes the opcode.
+     * @param opcode opcode to execute.
+     * @throws UnimplementedInstructionException in case the opcode hasn't been implemented.
+     */
+    protected void executeOpcode(byte opcode) throws UnimplementedInstructionException {
+        switch ((int) opcode & 0xFF) {
+            case 0x00 -> this.brk();
+            case 0xA9 -> this.lda();
+            default -> {
+                throw new UnimplementedInstructionException(
+                        String.format("Opcode not implemented: 0x%02X",
+                                this.currentInstruction.getOpcode()));
+            }
+        }
     }
 
     /* =====================
@@ -361,38 +396,8 @@ public class MOS6502 {
      * and IRQ interrupt vector at $FFFE/F is loaded into PC and the break flag
      * in the status is set to one.
      */
-    private void brk() throws IllegalCycleException {
-        switch (this.currentInstructionCycle) {
-            /* "Read next instruction byte and throw it away,
-             * increment PC."
-             */
-            case 2 -> {
-                this.programCounter++;
-            }
-            // "Push PCH on stack (with B flag set), decrement S"
-            case 3 -> {
-                this.setBreak();
-                this.stackPush((byte) (this.programCounter >> 8));
-            }
-            // "Push PCL on stack, decrement S"
-            case 4 -> {
-                this.stackPush((byte) (this.programCounter & 0xFF));
-            }
-            // "Push P on stack, decrement S"
-            case 5 -> {
-                this.stackPush(this.status);
-            }
-            // "Fetch PCL"
-            case 6 -> {
-                this.addressBus = IRQ_VECTOR_LOW;
-                this.readWritePin = ReadWrite.Read;
-            }
-            // "Fetch PCH"
-            case 7 -> {
-                this.addressBus = IRQ_VECTOR_HIGH;
-            }
-            default -> throw new IllegalCycleException(this);
-        }
+    private void brk() {
+        this.programCounter = (short) ((this.programCounter & 0x00FF) | (this.dataBus << 8));
     }
 
 
@@ -418,18 +423,10 @@ public class MOS6502 {
 
     /**
      * Loads byte into accumulator register.
-     * @throws IllegalAddressingModeException in case the instruction has an unimplemented addressing mode.
-     * @throws IllegalCycleException in case the instruction reaches an unimplemented cycle.
      */
-    private void lda() throws IllegalAddressingModeException, IllegalCycleException {
-        switch (this.currentInstruction.getAddressingMode()) {
-            case Immediate -> this.genericImmediateAddressing();
-            default -> throw new IllegalAddressingModeException(this);
-        }
-        if (this.currentInstructionCycle == this.currentInstruction.getCycles()) {
-            this.accumulator = this.dataBus;
-            this.updateZeroAndNegativeFlags(this.accumulator);
-        }
+    private void lda() {
+        this.accumulator = this.dataBus;
+        this.updateZeroAndNegativeFlags(this.accumulator);
     }
 
     /* =====================
@@ -450,20 +447,58 @@ public class MOS6502 {
         }
     }
 
-    /* =============================
-     * GENERIC INSTRUCTION FUNCTIONS
-     =============================== */
+    /* ====================================
+     * CYCLE-BY-CYCLE INSTRUCTION FUNCTIONS
+     ====================================== */
 
     /* At each case, the command above it between quotation marks
      * are extracted from this cycle-by-cycle guide of the NES dev wiki:
      * https://www.nesdev.org/6502_cpu.txt
      */
-
+    /**
+     * Forces interrupt request. PC and processor status are pushed to the stack
+     * and IRQ interrupt vector at $FFFE/F is loaded into PC and the break flag
+     * in the status is set to one.
+     */
+    private void brkCycleByCycle() throws IllegalCycleException {
+        switch (this.currentInstructionCycle) {
+            /* "Read next instruction byte and throw it away,
+             * increment PC."
+             */
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.programCounter++;
+            }
+            // "Push PCH on stack (with B flag set), decrement S"
+            case 3 -> {
+                this.stackPush((byte) (this.programCounter >> 8));
+            }
+            // "Push PCL on stack, decrement S"
+            case 4 -> {
+                this.stackPush((byte) (this.programCounter & 0xFF));
+            }
+            // "Push P on stack, decrement S"
+            case 5 -> {
+                this.stackPush((byte) (this.status | BREAK));
+            }
+            // "Fetch PCL"
+            case 6 -> {
+                this.addressBus = IRQ_VECTOR_LOW;
+                this.readWritePin = ReadWrite.Read;
+            }
+            // "Fetch PCH"
+            case 7 -> {
+                this.programCounter = (short) ((this.programCounter & 0xFF00) | this.dataBus);
+                this.addressBus = IRQ_VECTOR_HIGH;
+            }
+            default -> throw new IllegalCycleException(this);
+        }
+    }
 
     /**
      * Function to generically represent the cycle-to-cycle behavior of the MOS6502
      * for instructions with implied addressing mode.
-     * @throws IllegalCycleException in case the instruction reaches and unimplemented cycle.
+     * @throws IllegalCycleException in case the instruction reaches an unimplemented cycle.
      */
     private void genericImpliedAddressing() throws IllegalCycleException {
         switch (this.currentInstructionCycle) {
@@ -475,6 +510,11 @@ public class MOS6502 {
         }
     }
 
+    /**
+     * Function that generically represents the cycle-to-cycle behavior of Immediate addressing mode
+     * instructions.
+     * @throws IllegalCycleException in case the function reaches an unimplemented cycle.
+     */
     private void genericImmediateAddressing() throws IllegalCycleException {
         switch (this.currentInstructionCycle) {
             // "Fetch value, increment PC"
@@ -500,15 +540,13 @@ public class MOS6502 {
     private void updateZeroAndNegativeFlags(byte number) {
         if (number == 0) {
             this.setZero();
-        }
-        else {
+        } else {
             this.unsetZero();
         }
         // Reminder: Java's 'byte' types are signed
         if (number < 0) {
             this.setNegative();
-        }
-        else {
+        } else {
             this.unsetNegative();
         }
     }

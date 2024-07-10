@@ -146,6 +146,21 @@ class ControllerUnitTest {
         assertEquals(237, emulator.memory.readAsInt((short) 9684));
     }
 
+    @Test
+    void testLoad() {
+        byte[] program  = new byte[0x10000];
+        program[45930] = (byte) 169;
+        program[45931] = (byte) 204;
+        program[45932] = (byte) 33;
+
+        ControllerUnit emu = new ControllerUnit();
+        emu.load(program);
+
+        assertEquals((byte) 169, emu.memory.read((short) 45930));
+        assertEquals((byte) 204, emu.memory.read((short) 45931));
+        assertEquals((byte) 33, emu.memory.read((short) 45932));
+    }
+
     //@Test
     void testAllInstructions()
             throws MOS6502.UnimplementedInstructionException,
@@ -162,7 +177,7 @@ class ControllerUnitTest {
             FileNotFoundException,
             MOS6502.IllegalCycleException,
             MOS6502.IllegalAddressingModeException {
-        String instruction = "\\a9.json";
+        String instruction = "\\00.json";
         File testFile = new File(pathToTests + instruction);
         testRunInstruction(testFile);
     }
@@ -209,11 +224,6 @@ class ControllerUnitTest {
         // Load program into memory
         emulator.load(testCase.before.ram);
 
-        // Sets address bus to program counter
-        // Doing this ensures the first instruction is properly loaded
-        emulator.cpu.setAddressBus(emulator.cpu.getProgramCounter());
-        emulator.cpu.setDataBus(emulator.memory.read(emulator.cpu.getProgramCounter()));
-
         // Runs test case
         ArrayList<ControllerUnit.Log> logList = emulator.runOneInstructionWithLogging();
 
@@ -221,6 +231,12 @@ class ControllerUnitTest {
         String message = "Test case " + testCase.name
                 + String.format(" of opcode 0x%02X", emulator.cpu.getCurrentInstruction().getOpcode());
 
+        /*
+        System.out.println("Logs:");
+        for (int i = 0; i < logList.size(); i++) {
+            System.out.println(logList.get(i).toString());
+        }
+         */
         for (int i = 0; i < logList.size(); i++) {
             assertEquals(
                     testCase.cycles.get(i).getAddressAsInt(),

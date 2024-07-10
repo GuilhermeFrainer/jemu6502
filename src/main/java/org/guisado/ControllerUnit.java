@@ -132,23 +132,18 @@ public class ControllerUnit {
             throws MOS6502.UnimplementedInstructionException,
             MOS6502.IllegalAddressingModeException,
             MOS6502.IllegalCycleException {
-        // Initialize MOS6502
         ArrayList<Log> logArray = new ArrayList<>();
 
-        byte opcode = this.memory.read(this.cpu.getAddressBus());
+        // Loads first instruction into data bus
+        this.cpu.setAddressBus(this.cpu.getProgramCounter());
+        this.cpu.setDataBus(this.memory.read(this.cpu.getProgramCounter()));
+
+        byte opcode = this.cpu.getDataBus();
         Instruction[] instructionSet = Instruction.initializeInstructionSet();
         Instruction instruction = instructionSet[(int) opcode & 0xFF];
-        this.cpu.init(opcode);
 
-        // Saves first log
-        //logArray.add(new Log(
-        //       this.cpu.getAddressBus(),
-        //        this.cpu.getDataBus(),
-        //        this.cpu.getReadWritePin()
-        //));
-
-        int i = 0;
-        while (i < instruction.getCycles()) {
+        for (int i = 0; i < instruction.getCycles(); i++) {
+            this.cpu.tick();
             if (this.cpu.getReadWritePin() == MOS6502.ReadWrite.Read) {
                 byte valueAtAddress = this.memory.read(this.cpu.getAddressBus());
                 this.cpu.setDataBus(valueAtAddress);
@@ -157,16 +152,24 @@ public class ControllerUnit {
                 short address = this.cpu.getAddressBus();
                 this.memory.write(valueInDataBus, address);
             }
+            // It seems that logging must be done after the tick
+            //this.cpu.tick();
             logArray.add(new Log(
                     this.cpu.getAddressBus(),
                     this.cpu.getDataBus(),
                     this.cpu.getReadWritePin()
             ));
-            this.cpu.tick();
-            i++;
-            //Log lastLog = logArray.getLast();
-            //System.out.println(lastLog.toString());
         }
+        // Executes the opcode
+        if (this.cpu.getReadWritePin() == MOS6502.ReadWrite.Read) {
+            byte valueAtAddress = this.memory.read(this.cpu.getAddressBus());
+            this.cpu.setDataBus(valueAtAddress);
+        } else if (this.cpu.getReadWritePin() == MOS6502.ReadWrite.Write) {
+            byte valueInDataBus = this.cpu.getDataBus();
+            short address = this.cpu.getAddressBus();
+            this.memory.write(valueInDataBus, address);
+        }
+        this.cpu.executeOpcode(this.cpu.getCurrentInstruction().getOpcode());
         return logArray;
     }
 }
