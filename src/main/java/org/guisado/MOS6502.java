@@ -324,9 +324,6 @@ public class MOS6502 {
         /* The first cycle in every single instruction
          * consists of fetching the next opcode and incrementing the program counter.
          */
-        System.out.println("Tick: " + this.currentCycle);
-        System.out.println("PC: " + String.format("0x%04X (%d)", this.getProgramCounterAsInt(), this.getProgramCounterAsInt()));
-        System.out.println("*********\n");
         if (this.currentInstructionCycle == 1) {
             // Executes the previous instruction before fetching the new one
             try {
