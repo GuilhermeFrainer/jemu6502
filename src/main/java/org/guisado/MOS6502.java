@@ -345,6 +345,7 @@ public class MOS6502 {
                 case 0x00 -> this.brkCycleByCycle();
                 // LDA
                 case 0xA9 -> this.genericImmediateAddressing();
+                case 0xA5 -> this.zeroPageReadInstruction();
                 default -> {
                     throw new UnimplementedInstructionException(
                             String.format("Opcode not implemented: 0x%02X",
@@ -370,8 +371,12 @@ public class MOS6502 {
      */
     protected void executeOpcode(byte opcode) throws UnimplementedInstructionException {
         switch ((int) opcode & 0xFF) {
+            // BRK
             case 0x00 -> this.brk();
+            // LDA
             case 0xA9 -> this.lda();
+            case 0xA5 -> this.lda();
+
             default -> {
                 throw new UnimplementedInstructionException(
                         String.format("Opcode not implemented: 0x%02X",
@@ -518,6 +523,27 @@ public class MOS6502 {
             case 2 -> {
                 this.addressBus = this.programCounter;
                 this.programCounter++;
+            }
+            default -> throw new IllegalCycleException("This instruction accepts at most "
+                    + this.currentInstruction.getCycles() + ", received " + this.currentInstructionCycle);
+        }
+    }
+
+    /**
+     * Implements cycle-to-cycle behavior of Zero Page read instructions (LDA, LDX, LDY,
+     * EOR, AND, ORA, ADC, SBC, CMP, BIT, LAX, NOP)
+     * @throws IllegalCycleException
+     */
+    private void zeroPageReadInstruction() throws IllegalCycleException {
+        switch (this.currentInstructionCycle) {
+            // "Fetch address, increment PC"
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.programCounter++;
+            }
+            // "Read from effective address"
+            case 3 -> {
+                this.addressBus = (short) (this.dataBus & 0xFF);
             }
             default -> throw new IllegalCycleException("This instruction accepts at most "
                     + this.currentInstruction.getCycles() + ", received " + this.currentInstructionCycle);

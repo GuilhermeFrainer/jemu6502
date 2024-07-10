@@ -172,12 +172,12 @@ class ControllerUnitTest {
     }
 
     @Test
-    void testInstructions()
+    void testSomeInstructions()
         throws MOS6502.UnimplementedInstructionException,
             FileNotFoundException,
             MOS6502.IllegalCycleException,
             MOS6502.IllegalAddressingModeException {
-        String[] instructions = {"00", "a9"};
+        String[] instructions = {"00", "a9", "a5"};
         for (String instruction: instructions) {
             System.out.println("Testing opcode 0x" + instruction);
             File testFile = new File(pathToTests + "\\" + instruction + ".json");

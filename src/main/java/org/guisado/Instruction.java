@@ -11,6 +11,22 @@ public class Instruction {
     private final String mnemonic;
 
     /**
+     * Represents different memory addressing modes for instructions.
+     */
+    public enum AddressingMode {
+        Implied,
+        Immediate,
+        ZeroPage,
+        ZeroPageX,
+        Absolute,
+        AbsoluteX,
+        AbsoluteY,
+        Indirect,
+        IndirectX,
+        IndirectY;
+    }
+
+    /**
      *
      * @param addressingMode
      * @param opcode
@@ -94,8 +110,13 @@ public class Instruction {
         // Increment instructions
         instructionSet[0xE8] = new Instruction(AddressingMode.Implied, (byte) 0xE8, 1, 2, "INX");
 
-        // Load instructions
+        /* =================
+         * LOAD INSTRUCTIONS
+         =================== */
+
+        // LDA
         instructionSet[0xA9] = new Instruction(AddressingMode.Immediate, (byte) 0xA9, 2, 2, "LDA");
+        instructionSet[0xA5] = new Instruction(AddressingMode.ZeroPage, (byte) 0xA5, 2, 3, "LDA");
 
         // Transfer instructions
         instructionSet[0xAA] = new Instruction(AddressingMode.Implied, (byte) 0xAA, 1, 2, "TAX");
