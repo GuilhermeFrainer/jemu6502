@@ -367,6 +367,14 @@ public class MOS6502 {
             switch ((int) this.currentInstruction.getOpcode() & 0xFF) {
                 // BRK
                 case 0x00 -> this.brkCycleByCycle();
+
+                // INCREMENT INSTRUCTIONS
+
+                // INX
+                case 0xE8 -> this.genericImpliedAddressing();
+
+                // LOAD INSTRUCTIONS
+
                 // LDA
                 case 0xA9 -> this.genericImmediateAddressing();
                 case 0xA5 -> this.zeroPageReadInstruction();
@@ -376,6 +384,11 @@ public class MOS6502 {
                 case 0xB9 -> this.absoluteIndexedReadInstruction(this.registerY);
                 case 0xA1 -> this.indexedIndirectReadInstruction();
                 case 0xB1 -> this.indirectIndexedReadInstruction();
+
+                // TRANSFER INSTRUCTIONS
+
+                // TAX
+                case 0xAA -> this.genericImpliedAddressing();
 
                 default -> {
                     throw new UnimplementedInstructionException(
@@ -405,6 +418,14 @@ public class MOS6502 {
         switch ((int) opcode & 0xFF) {
             // BRK
             case 0x00 -> this.brk();
+
+            // INCREMENT INSTRUCTIONS
+
+            // INX
+            case 0xE8 -> this.inx();
+
+            // LOAD INSTRUCTIONS
+
             // LDA
             case 0xA9 -> this.lda();
             case 0xA5 -> this.lda();
@@ -414,6 +435,11 @@ public class MOS6502 {
             case 0xB9 -> this.lda();
             case 0xA1 -> this.lda();
             case 0xB1 -> this.lda();
+
+            // TRANSFER INSTRUCTION
+
+            // TAX
+            case 0xAA -> this.tax();
 
             default -> {
                 throw new UnimplementedInstructionException(
@@ -447,14 +473,10 @@ public class MOS6502 {
 
     /**
      * Adds one to register X and sets the zero and negative flags as appropriate.
-     * @throws IllegalCycleException
      */
-    private void inx() throws IllegalCycleException {
-        this.genericImpliedAddressing();
-        if (this.currentInstructionCycle == this.currentInstruction.getCycles()) {
-            this.registerX++;
-            this.updateZeroAndNegativeFlags(this.registerX);
-        }
+    private void inx() {
+        this.registerX++;
+        this.updateZeroAndNegativeFlags(this.registerX);
     }
 
     /* =================
@@ -477,14 +499,10 @@ public class MOS6502 {
      * Transfers accumulator to register X.
      * Updates zero and negative flags if the new value for register X
      * is either zero or negative respectively.
-     * @throws IllegalCycleException in case the function reaches an unimplemented cycle.
      */
-    private void tax() throws IllegalCycleException {
-        this.genericImpliedAddressing();
-        if (this.currentInstructionCycle == this.currentInstruction.getCycles()) {
-            this.registerX = this.accumulator;
-            this.updateZeroAndNegativeFlags(this.registerX);
-        }
+    private void tax() {
+        this.registerX = this.accumulator;
+        this.updateZeroAndNegativeFlags(this.registerX);
     }
 
     /* ====================================

@@ -107,7 +107,11 @@ public class Instruction {
 
         instructionSet[0x00] = new Instruction(AddressingMode.Implied, (byte) 0x00, 1, 7, "BRK");
 
-        // Increment instructions
+        /* ======================
+         * INCREMENT INSTRUCTIONS
+         ======================== */
+
+        // INX
         instructionSet[0xE8] = new Instruction(AddressingMode.Implied, (byte) 0xE8, 1, 2, "INX");
 
         /* =================
@@ -124,7 +128,11 @@ public class Instruction {
         instructionSet[0xA1] = new Instruction(AddressingMode.IndirectX, (byte) 0xA1, 2, 6, "LDA");
         instructionSet[0xB1] = new Instruction(AddressingMode.IndirectY, (byte) 0xB1, 2, 5, "LDA");
 
-        // Transfer instructions
+        /* =====================
+         * TRANSFER INSTRUCTIONS
+         ======================= */
+
+        // TAX
         instructionSet[0xAA] = new Instruction(AddressingMode.Implied, (byte) 0xAA, 1, 2, "TAX");
 
         return instructionSet;
