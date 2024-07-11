@@ -239,7 +239,7 @@ class ControllerUnitTest {
 
         // Comparison
         String message = "Test case " + testCase.name
-                + String.format(" of opcode 0x%02X", emulator.cpu.getCurrentInstruction().getOpcode());
+                + String.format(" of opcode 0x%02X", emulator.cpu.getCurrentInstruction().opcode());
 
         /*
         System.out.println("Logs:");

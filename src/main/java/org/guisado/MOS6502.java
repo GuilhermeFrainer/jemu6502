@@ -194,9 +194,9 @@ public class MOS6502 {
         }
         private IllegalAddressingModeException(MOS6502 cpu) {
             super(
-              "Instruction " + cpu.currentInstruction.getMnemonic() +
+              "Instruction " + cpu.currentInstruction.mnemonic() +
                       " received unimplemented addressing mode " +
-                      cpu.currentInstruction.getAddressingMode().toString());
+                      cpu.currentInstruction.addressingMode().toString());
         }
     }
 
@@ -210,10 +210,10 @@ public class MOS6502 {
             super(message);
         }
         private IllegalCycleException(MOS6502 cpu) {
-            super("Instruction " + cpu.currentInstruction.getMnemonic() +
+            super("Instruction " + cpu.currentInstruction.mnemonic() +
                     " with opcode " +
-                    String.format("0x%02X", cpu.currentInstruction.getOpcode()) +
-                    " accepts at most " + cpu.currentInstruction.getCycles() +
+                    String.format("0x%02X", cpu.currentInstruction.opcode()) +
+                    " accepts at most " + cpu.currentInstruction.cycles() +
                     " but received " + cpu.currentInstructionCycle);
         }
     }
@@ -351,7 +351,7 @@ public class MOS6502 {
         if (this.currentInstructionCycle == 1) {
             // Executes the previous instruction before fetching the new one
             try {
-                this.executeOpcode(this.currentInstruction.getOpcode());
+                this.executeOpcode(this.currentInstruction.opcode());
             } catch (NullPointerException e) {
                 /* Ignores the exception if this is the first cycle,
                  * as there wouldn't be a "previous" instruction in this situation
@@ -364,7 +364,7 @@ public class MOS6502 {
             this.addressBus = this.programCounter;
             this.programCounter++;
         } else if (this.currentInstructionCycle > 1) {
-            switch ((int) this.currentInstruction.getOpcode() & 0xFF) {
+            switch ((int) this.currentInstruction.opcode() & 0xFF) {
                 // AND
                 case 0x29 -> this.genericImmediateAddressing();
                 case 0x25 -> this.zeroPageReadInstruction();
@@ -427,12 +427,12 @@ public class MOS6502 {
                 default -> {
                     throw new UnimplementedInstructionException(
                             String.format("Opcode not implemented: 0x%02X",
-                                    this.currentInstruction.getOpcode()));
+                                    this.currentInstruction.opcode()));
                 }
             }
         }
         // Checks if the current instruction has finished running.
-        if (this.currentInstructionCycle == this.currentInstruction.getCycles() + this.pageCrossed) {
+        if (this.currentInstructionCycle == this.currentInstruction.cycles() + this.pageCrossed) {
             // This might have to be fixed later
             //this.addressBus = this.programCounter;
             this.pageCrossed = 0;
@@ -483,7 +483,7 @@ public class MOS6502 {
             default -> {
                 throw new UnimplementedInstructionException(
                         String.format("Opcode not implemented: 0x%02X",
-                                this.currentInstruction.getOpcode()));
+                                this.currentInstruction.opcode()));
             }
         }
     }
@@ -664,7 +664,7 @@ public class MOS6502 {
                 this.programCounter++;
             }
             default -> throw new IllegalCycleException("This instruction accepts at most "
-                    + this.currentInstruction.getCycles() + ", received " + this.currentInstructionCycle);
+                    + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
         }
     }
 
@@ -685,7 +685,7 @@ public class MOS6502 {
                 this.addressBus = (short) (this.dataBus & 0xFF);
             }
             default -> throw new IllegalCycleException("This instruction accepts at most "
-                    + this.currentInstruction.getCycles() + ", received " + this.currentInstructionCycle);
+                    + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
         }
     }
 
@@ -713,7 +713,7 @@ public class MOS6502 {
                 this.addressBus &= 0x00FF;
             }
             default -> throw new IllegalCycleException("This instruction accepts at most "
-                    + this.currentInstruction.getCycles() + ", received " + this.currentInstructionCycle);
+                    + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
         }
     }
 
@@ -741,7 +741,7 @@ public class MOS6502 {
                 this.addressBus = (short) (this.dataBus << 8 | (this.retainedByte & 0xFF));
             }
             default -> throw new IllegalCycleException("This instruction accepts at most "
-                    + this.currentInstruction.getCycles() + ", received " + this.currentInstructionCycle);
+                    + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
         }
     }
 
@@ -786,7 +786,7 @@ public class MOS6502 {
             }
 
             default -> throw new IllegalCycleException("This instruction accepts at most "
-                    + this.currentInstruction.getCycles() + ", received " + this.currentInstructionCycle);
+                    + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
         }
     }
 
@@ -829,7 +829,7 @@ public class MOS6502 {
                 this.addressBus = (short) ((short) (this.dataBus << 8) | ((short) (this.retainedByte & 0xFF)));
             }
             default -> throw new IllegalCycleException("This instruction accepts at most "
-                    + this.currentInstruction.getCycles() + ", received " + this.currentInstructionCycle);
+                    + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
         }
     }
 
@@ -874,7 +874,7 @@ public class MOS6502 {
                 this.addressBus += 0x100;
             }
             default -> throw new IllegalCycleException("This instruction accepts at most "
-                    + this.currentInstruction.getCycles() + ", received " + this.currentInstructionCycle);
+                    + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
         }
     }
 

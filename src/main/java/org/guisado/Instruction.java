@@ -3,13 +3,8 @@ package org.guisado;
 /**
  * Represents an instruction.
  */
-public class Instruction {
-    private final AddressingMode addressingMode;
-    private final byte opcode;
-    private final int bytes;
-    private final int cycles;
-    private final String mnemonic;
-
+public record Instruction(org.guisado.Instruction.AddressingMode addressingMode, byte opcode, int bytes, int cycles,
+                          String mnemonic) {
     /**
      * Represents different memory addressing modes for instructions.
      */
@@ -28,80 +23,70 @@ public class Instruction {
     }
 
     /**
-     *
      * @param addressingMode
      * @param opcode
      * @param bytes
      * @param cycles
-     * @param mnemonic the instruction's mnemonic. Must be string with three letters plus an optional '*' if
-     *                 it's an "unofficial" instruction.
+     * @param mnemonic       the instruction's mnemonic. Must be string with three letters plus an optional '*' if
+     *                       it's an "unofficial" instruction.
      * @throws IllegalArgumentException in case invalid mnemonics (i.e. length > 4), 'bytes' (> 3) or 'cycles' (>7)
-     * are passed.
+     *                                  are passed.
      */
-    public Instruction(AddressingMode addressingMode, byte opcode, int bytes, int cycles, String mnemonic)
-        throws IllegalArgumentException {
-
+    public Instruction {
         if (mnemonic.length() > 4) {
             throw new IllegalArgumentException("String length must be at most 4. Received string of length " + mnemonic.length());
-        }
-        else if (bytes > 3 || bytes < 1) {
+        } else if (bytes > 3 || bytes < 1) {
             throw new IllegalArgumentException("'bytes' must be in the range [1, 3]. Got " + bytes);
-        }
-        else if (cycles > 7 || cycles < 1) {
+        } else if (cycles > 7 || cycles < 1) {
             throw new IllegalArgumentException("´cycles' must be in the range [1, 7]. Got " + cycles);
 
         }
-        this.addressingMode = addressingMode;
-        this.opcode = opcode;
-        this.bytes = bytes;
-        this.cycles = cycles;
-        this.mnemonic = mnemonic;
     }
 
     /**
-     *
      * @return this instruction's addressing mode.
      */
-    public AddressingMode getAddressingMode() {
+    @Override
+    public AddressingMode addressingMode() {
         return this.addressingMode;
     }
 
     /**
-     *
      * @return this instruction's opcode.
      */
-    public byte getOpcode() {
+    @Override
+    public byte opcode() {
         return this.opcode;
     }
 
     /**
-     *
      * @return this instruction's number of bytes.
      * This means the instruction byte + the operands.
      */
-    public int getBytes() {
+    @Override
+    public int bytes() {
         return this.bytes;
     }
 
     /**
-     *
      * @return this instruction's cycle count ignoring page crossing.
      */
-    public int getCycles() {
+    @Override
+    public int cycles() {
         return this.cycles;
     }
 
     /**
-     *
      * @return this instructions mnemonic.
      */
-    public String getMnemonic() {
+    @Override
+    public String mnemonic() {
         return this.mnemonic;
     }
 
     /**
      * Initializes array with the entire 6502 instruction set.
-     * @return
+     * @return the array.
      */
     public static Instruction[] initializeInstructionSet() {
         Instruction[] instructionSet = new Instruction[256];
@@ -156,7 +141,7 @@ public class Instruction {
         instructionSet[0xA6] = new Instruction(AddressingMode.ZeroPage, (byte) 0xA6, 2, 3, "LDX");
         instructionSet[0xB6] = new Instruction(AddressingMode.ZeroPageY, (byte) 0xB6, 2, 4, "LDX");
         instructionSet[0xAE] = new Instruction(AddressingMode.Absolute, (byte) 0xAE, 3, 4, "LDX");
-        instructionSet[0xBE] = new Instruction(AddressingMode.AbsoluteY, (byte) 0xBE, 3 ,4, "LDX");
+        instructionSet[0xBE] = new Instruction(AddressingMode.AbsoluteY, (byte) 0xBE, 3, 4, "LDX");
 
         // LDY
         instructionSet[0xA0] = new Instruction(AddressingMode.Immediate, (byte) 0xA0, 2, 2, "LDY");

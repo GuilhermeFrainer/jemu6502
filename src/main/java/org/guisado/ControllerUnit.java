@@ -67,7 +67,7 @@ public class ControllerUnit {
         this.cpu.init(opcode);
 
         int i = 0;
-        while (i < instruction.getCycles()) {
+        while (i < instruction.cycles()) {
             if (this.cpu.getReadWritePin() == MOS6502.ReadWrite.Read) {
                 byte valueAtAddress = this.memory.read(this.cpu.getAddressBus());
                 this.cpu.setDataBus(valueAtAddress);
@@ -142,7 +142,7 @@ public class ControllerUnit {
         Instruction[] instructionSet = Instruction.initializeInstructionSet();
         Instruction instruction = instructionSet[(int) opcode & 0xFF];
 
-        for (int i = 0; i < instruction.getCycles() + this.cpu.getPageCrossed(); i++) {
+        for (int i = 0; i < instruction.cycles() + this.cpu.getPageCrossed(); i++) {
             this.cpu.tick();
             if (this.cpu.getReadWritePin() == MOS6502.ReadWrite.Read) {
                 byte valueAtAddress = this.memory.read(this.cpu.getAddressBus());
@@ -169,7 +169,7 @@ public class ControllerUnit {
             short address = this.cpu.getAddressBus();
             this.memory.write(valueInDataBus, address);
         }
-        this.cpu.executeOpcode(this.cpu.getCurrentInstruction().getOpcode());
+        this.cpu.executeOpcode(this.cpu.getCurrentInstruction().opcode());
         return logArray;
     }
 }
