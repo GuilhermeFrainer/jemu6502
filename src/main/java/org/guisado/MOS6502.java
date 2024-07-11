@@ -145,6 +145,29 @@ public class MOS6502 {
     private int currentInstructionCycle;
     private int currentCycle;
 
+    /*
+     * Stupid abstraction necessitated by two facts:
+     * 1. Java doesn't have static variables like in C;
+     * 2. When fetching the address in absolute addressing, we have to store the first (low) byte
+     * of the address somewhere, and it can't be in the address bus, since we need to read the
+     * high byte of the new address.
+     * This *shouldn't* be too big of a problem, since it *should* be written to in one cycle
+     * and read on the next one.
+     */
+    private byte retainedByte;
+
+    /*
+     * Wonky abstraction necessitated by the fact that instructions which page cross
+     * need to run for an additional cycle.
+     * Should be 0 most of the time, set to 1 when a page cross is detected,
+     * then set back to 0 after the instruction is finished running.
+     */
+    private int pageCrossed;
+
+    int getPageCrossed() {
+        return this.pageCrossed;
+    }
+
     protected Instruction getCurrentInstruction() {
         return this.currentInstruction;
     }
@@ -217,6 +240,7 @@ public class MOS6502 {
         this.currentCycle = 0;
         this.breakSign = false;
         this.readWritePin = ReadWrite.Read;
+        this.pageCrossed = 0;
     }
 
     /**
@@ -346,6 +370,13 @@ public class MOS6502 {
                 // LDA
                 case 0xA9 -> this.genericImmediateAddressing();
                 case 0xA5 -> this.zeroPageReadInstruction();
+                case 0xB5 -> this.zeroPageIndexedReadInstruction(this.registerX);
+                case 0xAD -> this.absoluteReadInstruction();
+                case 0xBD -> this.absoluteIndexedReadInstruction(this.registerX);
+                case 0xB9 -> this.absoluteIndexedReadInstruction(this.registerY);
+                case 0xA1 -> this.indexedIndirectReadInstruction();
+                case 0xB1 -> this.indirectIndexedReadInstruction();
+
                 default -> {
                     throw new UnimplementedInstructionException(
                             String.format("Opcode not implemented: 0x%02X",
@@ -354,9 +385,10 @@ public class MOS6502 {
             }
         }
         // Checks if the current instruction has finished running.
-        if (this.currentInstructionCycle == this.currentInstruction.getCycles()) {
+        if (this.currentInstructionCycle == this.currentInstruction.getCycles() + this.pageCrossed) {
             // This might have to be fixed later
             //this.addressBus = this.programCounter;
+            this.pageCrossed = 0;
             this.currentInstructionCycle = 0; // Set to 0 because it'll be incremented before the next iteration.
             this.readWritePin = ReadWrite.Read;
         }
@@ -376,6 +408,12 @@ public class MOS6502 {
             // LDA
             case 0xA9 -> this.lda();
             case 0xA5 -> this.lda();
+            case 0xB5 -> this.lda();
+            case 0xAD -> this.lda();
+            case 0xBD -> this.lda();
+            case 0xB9 -> this.lda();
+            case 0xA1 -> this.lda();
+            case 0xB1 -> this.lda();
 
             default -> {
                 throw new UnimplementedInstructionException(
@@ -544,6 +582,195 @@ public class MOS6502 {
             // "Read from effective address"
             case 3 -> {
                 this.addressBus = (short) (this.dataBus & 0xFF);
+            }
+            default -> throw new IllegalCycleException("This instruction accepts at most "
+                    + this.currentInstruction.getCycles() + ", received " + this.currentInstructionCycle);
+        }
+    }
+
+    /**
+     * Implements cycle-to-cycle behavior of Zero Page Indexed (either by X or Y)
+     * read instructions (LDA, LDX, LDY, EOR, AND, ORA, ADC, SBC, CMP, BIT, LAX, NOP).
+     * @param indexRegister the register used for indexing. Either register X or Y.
+     * @throws IllegalCycleException
+     */
+    private void zeroPageIndexedReadInstruction(byte indexRegister) throws IllegalCycleException {
+        switch (this.currentInstructionCycle) {
+            // "Fetch address, increment PC"
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.programCounter++;
+            }
+            // "Read from address, add index register to it"
+            case 3 -> {
+                this.addressBus = (short) (this.dataBus & 0xFF);
+            }
+            // "Read from effective address"
+            case 4 -> {
+                this.addressBus += (short) (indexRegister & 0xFF);
+                // Zeros out highest byte
+                this.addressBus &= 0x00FF;
+            }
+            default -> throw new IllegalCycleException("This instruction accepts at most "
+                    + this.currentInstruction.getCycles() + ", received " + this.currentInstructionCycle);
+        }
+    }
+
+    /**
+     * Implements cycle-to-cycle behavior of Absolute addressing read instructions
+     * (LDA, LDX, LDY, EOR, AND, ORA, ADC, SBC, CMP, BIT, LAX, NOP)
+     * @throws IllegalCycleException
+     */
+    private void absoluteReadInstruction() throws IllegalCycleException {
+        switch (this.currentInstructionCycle) {
+            // "Fetch low byte of address, increment PC"
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.programCounter++;
+            }
+            // "Fetch high byte of address, increment PC"
+            case 3 -> {
+                this.retainedByte = this.dataBus;
+                this.addressBus = this.programCounter;
+                this.programCounter++;
+            }
+            // "Read from effective address"
+            case 4 -> {
+                // Retails low byte and reads high byte from data bus
+                this.addressBus = (short) (this.dataBus << 8 | (this.retainedByte & 0xFF));
+            }
+            default -> throw new IllegalCycleException("This instruction accepts at most "
+                    + this.currentInstruction.getCycles() + ", received " + this.currentInstructionCycle);
+        }
+    }
+
+    /**
+     * Implements cycle-to-cycle behavior of Absolute Indexed (either by register X or Y) read instructions
+     * (LDA, LDX, LDY, EOR, AND, ORA, ADC, SBC, CMP, BIT, LAX, LAE, SHS, NOP).
+     * Runs for an extra cycle if page crossing.
+     * @param indexRegister register containing the index. Either register X or Y.
+     * @throws IllegalCycleException
+     */
+    private void absoluteIndexedReadInstruction(byte indexRegister) throws IllegalCycleException {
+        switch (this.currentInstructionCycle) {
+            // "Fetch low byte of address, increment PC"
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.programCounter++;
+            }
+            // "Fetch high byte of address, add index register to low address byte, increment PC"
+            case 3 -> {
+                // Retain low byte
+                this.retainedByte = this.dataBus;
+                this.addressBus = programCounter;
+                this.programCounter++;
+            }
+            // "Read from effective address, fix the high byte of effective address"
+            case 4 -> {
+                // Adds low byte of address and index register to check for page crossing
+                short sum = (short) ((short) (this.retainedByte & 0xFF) + (short) (indexRegister & 0xFF));
+                if ((sum & 0x100) != 0) {
+                    this.pageCrossed = 1;
+                }
+                this.addressBus = (short) (this.dataBus << 8 | (short) (sum & 0xFF));
+            }
+            // "Re-read from effective address"
+            // Only run if there's page crossing
+            case 5 -> {
+                if (this.pageCrossed == 0) {
+                    throw new IllegalCycleException("This cycle should only be run if a page crossing is" +
+                            " identified, but that didn't happen.");
+                }
+                this.addressBus += 0x100;
+            }
+
+            default -> throw new IllegalCycleException("This instruction accepts at most "
+                    + this.currentInstruction.getCycles() + ", received " + this.currentInstructionCycle);
+        }
+    }
+
+    /**
+     * Implements the cycle-by-cycle behavior of Indexed Indirect (A.K.A Indexed,X) addressing mode read instructions
+     * (LDA, ORA, EOR, AND, ADC, CMP, SBC, LAX)
+     * @throws IllegalCycleException
+     */
+    private void indexedIndirectReadInstruction() throws IllegalCycleException {
+        switch (this.currentInstructionCycle) {
+            // "Fetch pointer address, increment PC"
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.programCounter++;
+            }
+            // "Read from the address, add X to it"
+            case 3 -> {
+                // Fetched data in this cycle is discarded
+                this.addressBus = (short) (this.dataBus & 0xFF);
+            }
+            // "Fetch effective address low"
+            case 4 -> {
+                this.addressBus += (short) (this.registerX & 0xFF);
+                this.addressBus &= 0xFF; // Zeroes out most significant byte
+            }
+            // "Fetch effective address high"
+            case 5 -> {
+                this.retainedByte = this.dataBus;
+                this.addressBus++;
+                /*
+                 * The effective address is always fetched from the zero page,
+                 * so the page crossing is ignored.
+                 * In practice this means we have to zero out the most significant byte.
+                 */
+                this.addressBus &= 0xFF;
+            }
+
+            // "Read from effective address"
+            case 6 -> {
+                this.addressBus = (short) ((short) (this.dataBus << 8) | ((short) (this.retainedByte & 0xFF)));
+            }
+            default -> throw new IllegalCycleException("This instruction accepts at most "
+                    + this.currentInstruction.getCycles() + ", received " + this.currentInstructionCycle);
+        }
+    }
+
+    /**
+     * Implements the cycle-by-cycle behavior of the Indirect Indexed (A.K.A. Indexed,Y) addressing mode
+     * for read instructions (LDA, EOR, AND, ORA, ADC, SBC, CMP).
+     * Takes an extra cycle in case of page crossing.
+     * @throws IllegalCycleException
+     */
+    private void indirectIndexedReadInstruction() throws IllegalCycleException {
+        switch (this.currentInstructionCycle) {
+            // "Fetch pointer address, increment PC"
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.programCounter++;
+            }
+            // "Fetch effective address low"
+            case 3 -> {
+                this.addressBus = (short) (this.dataBus & 0xFF);
+            }
+            // "Fetch effective address high, add Y to low byte of effective address"
+            case 4 -> {
+                this.retainedByte = this.dataBus;
+                this.addressBus++;
+                this.addressBus &= 0xFF; // Effective address is always fetched from zero page
+            }
+            // "Read from effective address, fix high byte of effective address"
+            case 5 -> {
+                final short sum = (short) ((short) (this.retainedByte & 0xFF) + (short) (this.registerY & 0xFF));
+                // Detects page crossing
+                if ((sum & 0x100) != 0) {
+                    this.pageCrossed = 1;
+                }
+                this.addressBus = (short) (this.dataBus << 8 | (short) (sum & 0xFF));
+            }
+            // "Read from effective address"
+            case 6 -> {
+                if (this.pageCrossed == 0) {
+                    throw new IllegalCycleException("This cycle should only be run if a page crossing is" +
+                            " identified, but that didn't happen.");
+                }
+                this.addressBus += 0x100;
             }
             default -> throw new IllegalCycleException("This instruction accepts at most "
                     + this.currentInstruction.getCycles() + ", received " + this.currentInstructionCycle);

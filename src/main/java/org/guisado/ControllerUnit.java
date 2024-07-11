@@ -142,7 +142,7 @@ public class ControllerUnit {
         Instruction[] instructionSet = Instruction.initializeInstructionSet();
         Instruction instruction = instructionSet[(int) opcode & 0xFF];
 
-        for (int i = 0; i < instruction.getCycles(); i++) {
+        for (int i = 0; i < instruction.getCycles() + this.cpu.getPageCrossed(); i++) {
             this.cpu.tick();
             if (this.cpu.getReadWritePin() == MOS6502.ReadWrite.Read) {
                 byte valueAtAddress = this.memory.read(this.cpu.getAddressBus());
