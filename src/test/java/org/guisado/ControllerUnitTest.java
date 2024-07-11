@@ -178,7 +178,9 @@ class ControllerUnitTest {
             MOS6502.IllegalCycleException,
             MOS6502.IllegalAddressingModeException {
         String[] instructions = {"00", "a9", "a5", "b5", "ad", "bd", "b9", "a1", "b1",
-                                 "aa", "e8"};
+                                 "aa", "e8",
+                                 "a2", "a6", "b6", "ae", "be",
+                                 "a0", "a4", "b4", "ac", "bc",};
         for (String instruction: instructions) {
             System.out.println("Testing opcode 0x" + instruction);
             File testFile = new File(pathToTests + "\\" + instruction + ".json");

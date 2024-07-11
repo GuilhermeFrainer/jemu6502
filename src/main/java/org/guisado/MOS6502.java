@@ -385,6 +385,20 @@ public class MOS6502 {
                 case 0xA1 -> this.indexedIndirectReadInstruction();
                 case 0xB1 -> this.indirectIndexedReadInstruction();
 
+                // LDX
+                case 0xA2 -> this.genericImmediateAddressing();
+                case 0xA6 -> this.zeroPageReadInstruction();
+                case 0xB6 -> this.zeroPageIndexedReadInstruction(this.registerY);
+                case 0xAE -> this.absoluteReadInstruction();
+                case 0xBE -> this.absoluteIndexedReadInstruction(this.registerY);
+
+                // LDY
+                case 0xA0 -> this.genericImmediateAddressing();
+                case 0xA4 -> this.zeroPageReadInstruction();
+                case 0xB4 -> this.zeroPageIndexedReadInstruction(this.registerX);
+                case 0xAC -> this.absoluteReadInstruction();
+                case 0xBC -> this.absoluteIndexedReadInstruction(this.registerX);
+
                 // TRANSFER INSTRUCTIONS
 
                 // TAX
@@ -427,14 +441,13 @@ public class MOS6502 {
             // LOAD INSTRUCTIONS
 
             // LDA
-            case 0xA9 -> this.lda();
-            case 0xA5 -> this.lda();
-            case 0xB5 -> this.lda();
-            case 0xAD -> this.lda();
-            case 0xBD -> this.lda();
-            case 0xB9 -> this.lda();
-            case 0xA1 -> this.lda();
-            case 0xB1 -> this.lda();
+            case 0xA9, 0xA5, 0xB5, 0xAD, 0xBD, 0xB9, 0xA1, 0xB1 -> this.lda();
+
+            // LDX
+            case 0xA2, 0xA6, 0xB6, 0xAE, 0xBE -> this.ldx();
+
+            // LDY
+            case 0xA0, 0xA4, 0xB4, 0xAC, 0xBC -> this.ldy();
 
             // TRANSFER INSTRUCTION
 
@@ -484,13 +497,28 @@ public class MOS6502 {
      =================== */
 
     /**
-     * Loads byte into accumulator register.
+     * Loads byte into accumulator register and updates de zero and negative flags as appropriate.
      */
     private void lda() {
         this.accumulator = this.dataBus;
         this.updateZeroAndNegativeFlags(this.accumulator);
     }
 
+    /**
+     * Loads byte into register X and updates zero and negative flags as appropriate.
+     */
+    private void ldx() {
+        this.registerX = this.dataBus;
+        this.updateZeroAndNegativeFlags(this.registerX);
+    }
+
+    /**
+     * Loads byte into register Y and updates zero and negative flags as appropriate.
+     */
+    private void ldy() {
+        this.registerY = this.dataBus;
+        this.updateZeroAndNegativeFlags(this.registerY);
+    }
     /* =====================
      * TRANSFER INSTRUCTIONS
      ======================= */
