@@ -177,10 +177,14 @@ class ControllerUnitTest {
             FileNotFoundException,
             MOS6502.IllegalCycleException,
             MOS6502.IllegalAddressingModeException {
-        String[] instructions = {"00", "a9", "a5", "b5", "ad", "bd", "b9", "a1", "b1",
-                                 "aa", "e8",
-                                 "a2", "a6", "b6", "ae", "be",
-                                 "a0", "a4", "b4", "ac", "bc",};
+        String[] instructions = {
+                "00", "a9", "a5", "b5", "ad", "bd", "b9", "a1", "b1",
+                "aa", "e8",
+                "a2", "a6", "b6", "ae", "be",
+                "a0", "a4", "b4", "ac", "bc",
+                "49", "45", "55", "4d", "5d", "59", "41", "51",
+                "29", "25", "35", "2D", "3D", "39", "21", "31",
+        };
         for (String instruction: instructions) {
             System.out.println("Testing opcode 0x" + instruction);
             File testFile = new File(pathToTests + "\\" + instruction + ".json");

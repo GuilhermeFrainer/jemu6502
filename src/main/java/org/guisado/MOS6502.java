@@ -365,8 +365,28 @@ public class MOS6502 {
             this.programCounter++;
         } else if (this.currentInstructionCycle > 1) {
             switch ((int) this.currentInstruction.getOpcode() & 0xFF) {
+                // AND
+                case 0x29 -> this.genericImmediateAddressing();
+                case 0x25 -> this.zeroPageReadInstruction();
+                case 0x35 -> this.zeroPageIndexedReadInstruction(this.registerX);
+                case 0x2D -> this.absoluteReadInstruction();
+                case 0x3D -> this.absoluteIndexedReadInstruction(this.registerX);
+                case 0x39 -> this.absoluteIndexedReadInstruction(this.registerY);
+                case 0x21 -> this.indexedIndirectReadInstruction();
+                case 0x31 -> this.indirectIndexedReadInstruction();
+
                 // BRK
                 case 0x00 -> this.brkCycleByCycle();
+
+                // EOR
+                case 0x49 -> this.genericImmediateAddressing();
+                case 0x45 -> this.zeroPageReadInstruction();
+                case 0x55 -> this.zeroPageIndexedReadInstruction(this.registerX);
+                case 0x4D -> this.absoluteReadInstruction();
+                case 0x5D -> this.absoluteIndexedReadInstruction(this.registerX);
+                case 0x59 -> this.absoluteIndexedReadInstruction(this.registerY);
+                case 0x41 -> this.indexedIndirectReadInstruction();
+                case 0x51 -> this.indirectIndexedReadInstruction();
 
                 // INCREMENT INSTRUCTIONS
 
@@ -430,8 +450,14 @@ public class MOS6502 {
      */
     protected void executeOpcode(byte opcode) throws UnimplementedInstructionException {
         switch ((int) opcode & 0xFF) {
+            // AND
+            case 0x29, 0x25, 0x35, 0x2D, 0x3D, 0x39, 0x21, 0x31 -> this.and();
+
             // BRK
             case 0x00 -> this.brk();
+
+            // EOR
+            case 0x49, 0x45, 0x55, 0x4D, 0x5D, 0x59, 0x41, 0x51 -> this.eor();
 
             // INCREMENT INSTRUCTIONS
 
@@ -466,6 +492,21 @@ public class MOS6502 {
      * INSTRUCTION FUNCTIONS
      ======================= */
 
+    /* =
+     * A
+     === */
+
+    /**
+     * Performs a bitwise and between the accumulator and the contents of the data bus
+     * and stores the result in the accumulator.
+     * Updates zero and negative flags accordingly.
+     */
+    private void and() {
+        this.accumulator = (byte) ((this.accumulator & 0xFF) & (this.dataBus & 0xFF));
+        this.updateZeroAndNegativeFlags(this.accumulator);
+    }
+
+
     /* =====
      * BREAK
      ======= */
@@ -477,6 +518,20 @@ public class MOS6502 {
      */
     private void brk() {
         this.programCounter = (short) ((this.programCounter & 0x00FF) | (this.dataBus << 8));
+    }
+
+
+    /* ===
+     * EOR
+     ===== */
+
+    /**
+     * XORs the contents of the accumulator with what's on the data bus.
+     * Updates zero and negative flags as needed.
+     */
+    private void eor() {
+        this.accumulator = (byte) ((this.accumulator & 0xFF) ^ (this.dataBus & 0xFF));
+        this.updateZeroAndNegativeFlags(this.accumulator);
     }
 
 
