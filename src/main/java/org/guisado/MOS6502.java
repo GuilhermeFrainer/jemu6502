@@ -997,55 +997,60 @@ public class MOS6502 {
      * One of them should be the accumulator.
      * Used as a helper function for the ADC and SBC instruction when the CPU is in decimal mode.
      * Updates the carry and overflow flags.
+     * For an explanation on how this works, check this:
+     * <a href="http://www.6502.org/tutorials/decimal_mode.html#A">...</a>
      * @param x accumulator
      * @param y number to add to the accumulator.
      *          It's always the byte in the data bus.
      * @return result of the addition.
      */
     private byte addWithCarryDecimal(byte x, byte y) {
-        // THIS SEEMS TO BE WORKING NOW
-        // TODO: FIX FLAGS (Z, N, V)
-
-        final int decimalAccumulator = x & 0xFF;
-        final int decimalOperand = y & 0xFF;
+        final int unsignedAccumulator = x & 0xFF;
+        final int unsignedOperand = y & 0xFF;
         final int carryIn = this.status & CARRY; // Carry flag is the least significant bit
 
+        // The zero flag is set as if it were regular binary addition
+        if (((unsignedAccumulator + unsignedOperand + carryIn) & 0xFF) == 0) {
+            this.setZero();
+        } else {
+            this.unsetZero();
+        }
+
         // Add least significant nibble (lowest digit)
-        int sum = (decimalAccumulator & 0xF) + (decimalOperand & 0xF) + carryIn;
-        System.out.println(sum);
-        if (sum > 0x9) {
+        final int lowNibble = (unsignedAccumulator & 0xF) + (unsignedOperand & 0xF) + carryIn;
+        int sum = lowNibble; // This is the value that will be returned
+        if (lowNibble > 0x9) {
             sum = ((sum + 0x06) & 0xF) + 0x10;
         }
 
         // Add most significant nibble (highest digit)
-        sum += (decimalAccumulator & 0xF0) + (decimalOperand & 0xF0);
-
-        // Overflow flag is set before correction of the higher nibble
-        if (((decimalAccumulator ^ (sum & 0xFF)) & (decimalOperand ^ (sum & 0xFF)) & 0x80) != 0) {
-            this.setOverflow();
-        } else {
-            this.unsetOverflow();
-        }
-
-        // Negative flag is set before correction of the higher nibble
-
+        sum += (unsignedAccumulator & 0xF0) + (unsignedOperand & 0xF0);
         if (sum > 0x90) {
             sum += 0x60;
         }
 
+        // Carry is set based on the final result
         if (sum > 0x99) {
             this.setCarry();
         } else {
             this.unsetCarry();
         }
 
-        if (sum == 0) {
-            this.setZero();
+        // Negative and Overflow flags are set based on signed addition
+        final int signedSum = (byte) (unsignedAccumulator & 0xF0)
+                + (byte) (unsignedOperand & 0xF0) + (byte) (lowNibble);
+        if ((byte) signedSum < 0) {
+            this.setNegative();
         } else {
-            this.unsetZero();
+            this.unsetNegative();
         }
 
-        System.out.println(sum);
+        // Overflow is set if this result is > 127 or < -128
+        if (signedSum > 127 || signedSum < -128) {
+            this.setOverflow();
+        } else {
+            this.unsetOverflow();
+        }
         return (byte) sum;
     }
 
