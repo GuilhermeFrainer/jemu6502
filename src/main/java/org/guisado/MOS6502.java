@@ -6,17 +6,17 @@ package org.guisado;
  */
 public class MOS6502 {
     // Status register flags
-    private static final byte NEGATIVE = (byte) 0b10000000;
-    private static final byte OVERFLOW = 0b01000000;
+    static final byte NEGATIVE = (byte) 0b10000000;
+    static final byte OVERFLOW = 0b01000000;
     /**
      * Called "expansion" bit in the official documentation.
      */
-    private static final byte EXPANSION = 0b00100000;
-    private static final byte BREAK = 0b00010000;
-    private static final byte DECIMAL = 0b00001000;
-    private static final byte INTERRUPT_DISABLE = 0b00000100;
-    private static final byte ZERO = 0b00000010;
-    private static final byte CARRY = 0b00000001;
+    static final byte EXPANSION = 0b00100000;
+    static final byte BREAK = 0b00010000;
+    static final byte DECIMAL = 0b00001000;
+    static final byte INTERRUPT_DISABLE = 0b00000100;
+    static final byte ZERO = 0b00000010;
+    static final byte CARRY = 0b00000001;
 
     private static final short STACK_PAGE = 0x100;
     private static final byte STARTING_STACK_POINTER = (byte) 0xFF;
@@ -49,6 +49,10 @@ public class MOS6502 {
         this.programCounter = address;
     }
 
+    protected void setProgramCounter(int address) {
+        this.programCounter = (short) address;
+    }
+
     protected byte getStackPointer() {
         return this.stackPointer;
     }
@@ -59,6 +63,10 @@ public class MOS6502 {
 
     protected void setStackPointer(byte value) {
         this.stackPointer = value;
+    }
+
+    protected void setStackPointer(int value) {
+        this.stackPointer = (byte) value;
     }
 
     protected byte getStatus() {
@@ -73,6 +81,10 @@ public class MOS6502 {
         this.status = value;
     }
 
+    protected void setStatus(int value) {
+        this.status = (byte) value;
+    }
+
     protected byte getAccumulator() {
         return this.accumulator;
     }
@@ -83,6 +95,10 @@ public class MOS6502 {
 
     protected void setAccumulator(byte value) {
         this.accumulator = value;
+    }
+
+    protected void setAccumulator(int value) {
+        this.accumulator = (byte) value;
     }
 
     protected byte getRegisterX() {
@@ -97,6 +113,10 @@ public class MOS6502 {
         this.registerX = value;
     }
 
+    protected void setRegisterX(int value) {
+        this.registerX = (byte) value;
+    }
+
     protected byte getRegisterY() {
         return this.registerY;
     }
@@ -107,6 +127,10 @@ public class MOS6502 {
 
     protected void setRegisterY(byte value) {
         this.registerY = value;
+    }
+
+    protected void setRegisterY(int value) {
+        this.registerY = (byte) value;
     }
 
     public enum ReadWrite {
@@ -138,6 +162,10 @@ public class MOS6502 {
 
     public void setDataBus(byte number) {
         this.dataBus = number;
+    }
+
+    public void setDataBus(int number) {
+        this.dataBus = (byte) number;
     }
 
     // Abstractions
@@ -228,8 +256,8 @@ public class MOS6502 {
 
     public MOS6502() {
         this.programCounter = 0;
-        this.stackPointer = 0;
-        this.status = STARTING_STACK_POINTER;
+        this.stackPointer = STARTING_STACK_POINTER;
+        this.status = 0;
         this.accumulator = 0;
         this.registerX = 0;
         this.registerY = 0;
@@ -365,6 +393,16 @@ public class MOS6502 {
             this.programCounter++;
         } else if (this.currentInstructionCycle > 1) {
             switch ((int) this.currentInstruction.opcode() & 0xFF) {
+                // ADC
+                case 0x69 -> this.genericImmediateAddressing();
+                case 0x65 -> this.zeroPageReadInstruction();
+                case 0x75 -> this.zeroPageIndexedReadInstruction(this.registerX);
+                case 0x6D -> this.absoluteReadInstruction();
+                case 0x7D -> this.absoluteIndexedReadInstruction(this.registerX);
+                case 0x79 -> this.absoluteIndexedReadInstruction(this.registerY);
+                case 0x61 -> this.indexedIndirectReadInstruction();
+                case 0x71 -> this.indirectIndexedReadInstruction();
+
                 // AND
                 case 0x29 -> this.genericImmediateAddressing();
                 case 0x25 -> this.zeroPageReadInstruction();
@@ -419,6 +457,16 @@ public class MOS6502 {
                 case 0xAC -> this.absoluteReadInstruction();
                 case 0xBC -> this.absoluteIndexedReadInstruction(this.registerX);
 
+                // ORA
+                case 0x09 -> this.genericImmediateAddressing();
+                case 0x05 -> this.zeroPageReadInstruction();
+                case 0x15 -> this.zeroPageIndexedReadInstruction(this.registerX);
+                case 0x0D -> this.absoluteReadInstruction();
+                case 0x1D -> this.absoluteIndexedReadInstruction(this.registerX);
+                case 0x19 -> this.absoluteIndexedReadInstruction(this.registerY);
+                case 0x01 -> this.indexedIndirectReadInstruction();
+                case 0x11 -> this.indirectIndexedReadInstruction();
+
                 // TRANSFER INSTRUCTIONS
 
                 // TAX
@@ -450,6 +498,9 @@ public class MOS6502 {
      */
     protected void executeOpcode(byte opcode) throws UnimplementedInstructionException {
         switch ((int) opcode & 0xFF) {
+            // ADC
+            case 0x69, 0x65, 0x75, 0x6D, 0x7D, 0x79, 0x61, 0x71 -> this.adc();
+
             // AND
             case 0x29, 0x25, 0x35, 0x2D, 0x3D, 0x39, 0x21, 0x31 -> this.and();
 
@@ -475,6 +526,9 @@ public class MOS6502 {
             // LDY
             case 0xA0, 0xA4, 0xB4, 0xAC, 0xBC -> this.ldy();
 
+            // ORA
+            case 0x09, 0x05, 0x15, 0x0D, 0x1D, 0x19, 0x01, 0x11 -> this.ora();
+
             // TRANSFER INSTRUCTION
 
             // TAX
@@ -495,6 +549,22 @@ public class MOS6502 {
     /* =
      * A
      === */
+
+    /**
+     * Adds the contents of memory to the accumulator + the carry bit. If overflow occurs, the carry is set.
+     * May treat operands either as decimal or hex number.
+     * Sets zero and negative flags accordingly.
+     */
+    void adc() {
+        // Interprets operands as decimal numbers.
+        if ((this.status & DECIMAL) != 0) {
+            this.accumulator = this.addWithCarryDecimal(this.accumulator, this.dataBus);
+        // Interprets them as hex numbers.
+        } else {
+            this.accumulator = this.addWithCarry(this.accumulator, this.dataBus);
+            this.updateZeroAndNegativeFlags(this.accumulator);
+        }
+    }
 
     /**
      * Performs a bitwise and between the accumulator and the contents of the data bus
@@ -574,6 +644,16 @@ public class MOS6502 {
         this.registerY = this.dataBus;
         this.updateZeroAndNegativeFlags(this.registerY);
     }
+
+    /**
+     * Performs inclusive bitwise OR on the accumulator contents using data bus contents.
+     * Updates zero and negative flags accordingly.
+     */
+    private void ora() {
+        this.accumulator = (byte) ((this.accumulator & 0xFF) | (this.dataBus & 0xFF));
+        this.updateZeroAndNegativeFlags(this.accumulator);
+    }
+
     /* =====================
      * TRANSFER INSTRUCTIONS
      ======================= */
@@ -882,6 +962,125 @@ public class MOS6502 {
      * HELPER FUNCTIONS
      ================== */
 
+
+    /**
+     * Performs addition between the accumulator and the operand.
+     * Used as a helper function for the ADC and SBC instructions.
+     * Updates the carry and overflow flags.
+     * @param x accumulator.
+     * @param y number to add to the accumulator.
+     *                It's always a byte held in this.dataBus.
+     * @return result of the addition.
+     */
+    private byte addWithCarry(byte x, byte y) {
+        final int carryIn = this.status & CARRY; // Carry bit is the least significant bit
+        final int unsignedAccumulator = x & 0xFF;
+        final int unsignedOperand = y & 0xFF;
+        final int sum = carryIn + unsignedOperand + unsignedAccumulator;
+        if (sum > 0xFF) {
+            this.setCarry();
+        } else {
+            this.unsetCarry();
+        }
+
+        final byte result = (byte) ((byte) sum & 0xFF);
+        if (((unsignedAccumulator ^ result) & (unsignedOperand ^ result) & 0x80) != 0) {
+            this.setOverflow();
+        } else {
+            this.unsetOverflow();
+        }
+        return result;
+    }
+
+    /**
+     * Performs addition between the two operands.
+     * One of them should be the accumulator.
+     * Used as a helper function for the ADC and SBC instruction when the CPU is in decimal mode.
+     * Updates the carry and overflow flags.
+     * @param x accumulator
+     * @param y number to add to the accumulator.
+     *          It's always the byte in the data bus.
+     * @return result of the addition.
+     */
+    private byte addWithCarryDecimal(byte x, byte y) {
+        // THIS SEEMS TO BE WORKING NOW
+        // TODO: FIX FLAGS (Z, N, V)
+
+        final int decimalAccumulator = x & 0xFF;
+        final int decimalOperand = y & 0xFF;
+        final int carryIn = this.status & CARRY; // Carry flag is the least significant bit
+
+        // Add least significant nibble (lowest digit)
+        int sum = (decimalAccumulator & 0xF) + (decimalOperand & 0xF) + carryIn;
+        System.out.println(sum);
+        if (sum > 0x9) {
+            sum = ((sum + 0x06) & 0xF) + 0x10;
+        }
+
+        // Add most significant nibble (highest digit)
+        sum += (decimalAccumulator & 0xF0) + (decimalOperand & 0xF0);
+
+        // Overflow flag is set before correction of the higher nibble
+        if (((decimalAccumulator ^ (sum & 0xFF)) & (decimalOperand ^ (sum & 0xFF)) & 0x80) != 0) {
+            this.setOverflow();
+        } else {
+            this.unsetOverflow();
+        }
+
+        // Negative flag is set before correction of the higher nibble
+
+        if (sum > 0x90) {
+            sum += 0x60;
+        }
+
+        if (sum > 0x99) {
+            this.setCarry();
+        } else {
+            this.unsetCarry();
+        }
+
+        if (sum == 0) {
+            this.setZero();
+        } else {
+            this.unsetZero();
+        }
+
+        System.out.println(sum);
+        return (byte) sum;
+    }
+
+    /**
+     * Converts decimal number to hex.
+     * Essentially reverts the conversion done with hexToDecimal.
+     * This is needed because the CPU will still be in decimal mode.
+     * E.g. in test 69 0a e1 we're adding 10 + 2 + carry = 13, but it needs to be stored as 19 decimal (0x13).
+     * @param n the number to be converted.
+     * @return the converted number.
+     */
+    byte decimalToHex(byte n) {
+        final int unsignedN = n & 0xFF;
+        final int tens = unsignedN / 10;
+        final int units = unsignedN % 10;
+        return (byte) (tens * 16 + units);
+    }
+
+    /**
+     * Converts hex number to binary coded decimal (BCD).
+     * Values 0x00-0x09 are equal to 0-9 (0b0000-0b1111). Values 0xA-0xF are invalid.
+     * 0x10-0x90 are equal to 10-90. Values 0xA0-0xF0 are invalid.
+     * This way, a byte can represent values 00-99.
+     * @param n value to be converted.
+     * @return the converted number.
+     */
+    byte hexToDecimal(byte n) {
+        final int lowNibble = n & 0xF;
+        final int highNibble = n & 0xF0;
+
+        final int carry = lowNibble > 9 ? 10 : 0;
+        final int decimalLowNibble = Math.min(lowNibble, 9);
+        final int decimalHighNibble = Math.min(((highNibble + carry) >> 4), 90);
+        return (byte) (decimalHighNibble * 10 + decimalLowNibble);
+    }
     /**
      * Sets zero flag if 'number' == 0,
      * otherwise sets negative flag if 'number' < 0.

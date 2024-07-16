@@ -184,6 +184,8 @@ class ControllerUnitTest {
                 "a0", "a4", "b4", "ac", "bc",
                 "49", "45", "55", "4d", "5d", "59", "41", "51",
                 "29", "25", "35", "2D", "3D", "39", "21", "31",
+                "09", "05", "15", "0d", "1d", "19", "01", "11",
+                "69", "65", "75", "6d", "7d", "79", "61", "71",
         };
         for (String instruction: instructions) {
             System.out.println("Testing opcode 0x" + instruction);
