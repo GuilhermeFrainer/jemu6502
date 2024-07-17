@@ -467,6 +467,17 @@ public class MOS6502 {
                 case 0x01 -> this.indexedIndirectReadInstruction();
                 case 0x11 -> this.indirectIndexedReadInstruction();
 
+
+                // SBC
+                case 0xE9 -> this.genericImmediateAddressing();
+                case 0xE5 -> this.zeroPageReadInstruction();
+                case 0xF5 -> this.zeroPageIndexedReadInstruction(this.registerX);
+                case 0xED -> this.absoluteReadInstruction();
+                case 0xFD -> this.absoluteIndexedReadInstruction(this.registerX);
+                case 0xF9 -> this.absoluteIndexedReadInstruction(this.registerY);
+                case 0xE1 -> this.indexedIndirectReadInstruction();
+                case 0xF1 -> this.indirectIndexedReadInstruction();
+
                 // TRANSFER INSTRUCTIONS
 
                 // TAX
@@ -528,6 +539,8 @@ public class MOS6502 {
 
             // ORA
             case 0x09, 0x05, 0x15, 0x0D, 0x1D, 0x19, 0x01, 0x11 -> this.ora();
+
+            case 0xE9, 0xE5, 0xF5, 0xED, 0xFD, 0xF9, 0xE1, 0xF1 -> this.sbc();
 
             // TRANSFER INSTRUCTION
 
@@ -652,6 +665,49 @@ public class MOS6502 {
     private void ora() {
         this.accumulator = (byte) ((this.accumulator & 0xFF) | (this.dataBus & 0xFF));
         this.updateZeroAndNegativeFlags(this.accumulator);
+    }
+
+    /**
+     * Subtracts the contents of an address in memory to the accumulator with the inverse of the carry bit.
+     * Updates zero, negative, overflow and carry flags.
+     * Might operate in decimal mode.
+     */
+    void sbc() {
+        if ((this.status & DECIMAL) != 0) {
+            final int unsignedAccumulator = this.accumulator & 0xFF;
+            final int unsignedOperand = this.dataBus & 0xFF;
+            final int carryIn = this.status & CARRY;
+            // Flags are set based on binary addition
+            final int binarySubtraction = unsignedAccumulator - unsignedOperand + carryIn - 1;
+            // Carry works in the opposite way of how it works in ADC
+            if (binarySubtraction < 0) {
+                this.unsetCarry();
+            } else {
+                this.setCarry();
+            }
+
+            final byte result = (byte) ((byte) binarySubtraction & 0xFF);
+            if (((unsignedAccumulator ^ result) & (unsignedOperand ^ result) & 0x80) != 0) {
+                this.setOverflow();
+            } else {
+                this.unsetOverflow();
+            }
+            this.updateZeroAndNegativeFlags((byte) binarySubtraction);
+
+            // Now we do proper decimal subtraction
+            final int lowNibble = (unsignedAccumulator & 0xF) - (unsignedOperand & 0xF) + carryIn - 1;
+            int subtraction = lowNibble;
+            if (lowNibble < 0) {
+                subtraction = ((lowNibble - 0x6) & 0xF) - 0x10;
+            }
+            subtraction += (unsignedAccumulator & 0xF0) - (unsignedOperand & 0xF0);
+            if (subtraction < 0) {
+                subtraction -= 0x60;
+            }
+            this.accumulator = (byte) subtraction;
+        } else {
+            this.accumulator = this.addWithCarry(this.accumulator, (byte) ~this.dataBus);
+        }
     }
 
     /* =====================

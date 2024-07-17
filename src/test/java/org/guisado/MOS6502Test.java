@@ -140,7 +140,7 @@ class MOS6502Test {
     }
 
     @Test
-    void test_69_7b_0a(){
+    void test_69_7b_0a() {
         MOS6502 cpu = new MOS6502();
 
         cpu.setStatus(44);
@@ -149,5 +149,17 @@ class MOS6502Test {
         cpu.adc();
         assertEquals(157, cpu.getAccumulatorAsInt());
         assertEquals(236, cpu.getStatusAsInt());
+    }
+
+    @Test
+    void test_e9_c4_08() {
+        MOS6502 cpu = new MOS6502();
+
+        cpu.setStatus(109);
+        cpu.setAccumulator(156);
+        cpu.setDataBus(196);
+        cpu.sbc();
+        assertEquals(120, cpu.getAccumulatorAsInt());
+        assertEquals(172, cpu.getStatusAsInt());
     }
 }
