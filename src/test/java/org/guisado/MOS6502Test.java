@@ -27,22 +27,9 @@ class MOS6502Test {
         assertEquals(MOS6502.ReadWrite.Write, cpu.getReadWritePin());
     }
 
-    @Test
-    void testHexToDecimal() {
-        MOS6502 cpu = new MOS6502();
-
-        assertEquals(40, cpu.hexToDecimal((byte) 0x40) & 0xFF);
-        assertEquals(10, cpu.hexToDecimal((byte) 0x10) & 0xFF);
-        assertEquals(64, cpu.hexToDecimal((byte) 0x64) & 0xFF);
-        assertEquals(58, cpu.hexToDecimal((byte) 0x58) & 0xFF);
-        assertEquals(46, cpu.hexToDecimal((byte) 0x46) & 0xFF);
-        assertEquals(12, cpu.hexToDecimal((byte) 0x12) & 0xFF);
-        assertEquals(34, cpu.hexToDecimal((byte) 0x34) & 0xFF);
-        assertEquals(15, cpu.hexToDecimal((byte) 0x15) & 0xFF);
-        assertEquals(26, cpu.hexToDecimal((byte) 0x26) & 0xFF);
-    }
     /**
-     * Tested with the examples found here: https://www.righto.com/2012/12/the-6502-overflow-flag-explained.html
+     * Tested with the examples found here:
+     * <a href="https://www.righto.com/2012/12/the-6502-overflow-flag-explained.html">...</a>
      */
     @Test
     void testADC() {
@@ -138,5 +125,29 @@ class MOS6502Test {
         cpu.adc();
         assertEquals(217, cpu.getAccumulatorAsInt());
         assertEquals(109, cpu.getStatusAsInt());
+    }
+
+    @Test
+    void test_69_84_43() {
+        MOS6502 cpu = new MOS6502();
+
+        cpu.setStatus(44);
+        cpu.setAccumulator(12);
+        cpu.setDataBus(132);
+        cpu.adc();
+        assertEquals(150, cpu.getAccumulatorAsInt());
+        assertEquals(172, cpu.getStatusAsInt());
+    }
+
+    @Test
+    void test_69_7b_0a(){
+        MOS6502 cpu = new MOS6502();
+
+        cpu.setStatus(44);
+        cpu.setAccumulator(28);
+        cpu.setDataBus(123);
+        cpu.adc();
+        assertEquals(157, cpu.getAccumulatorAsInt());
+        assertEquals(236, cpu.getStatusAsInt());
     }
 }

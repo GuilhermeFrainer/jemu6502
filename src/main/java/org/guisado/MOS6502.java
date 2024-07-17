@@ -680,6 +680,7 @@ public class MOS6502 {
      * Forces interrupt request. PC and processor status are pushed to the stack
      * and IRQ interrupt vector at $FFFE/F is loaded into PC and the break flag
      * in the status is set to one.
+     * @throws IllegalCycleException if the instruction is called at a cycle it shouldn't be.
      */
     private void brkCycleByCycle() throws IllegalCycleException {
         switch (this.currentInstructionCycle) {
@@ -751,7 +752,7 @@ public class MOS6502 {
     /**
      * Implements cycle-to-cycle behavior of Zero Page read instructions (LDA, LDX, LDY,
      * EOR, AND, ORA, ADC, SBC, CMP, BIT, LAX, NOP)
-     * @throws IllegalCycleException
+     * @throws IllegalCycleException if the instruction is called at a cycle it shouldn't be.
      */
     private void zeroPageReadInstruction() throws IllegalCycleException {
         switch (this.currentInstructionCycle) {
@@ -773,7 +774,7 @@ public class MOS6502 {
      * Implements cycle-to-cycle behavior of Zero Page Indexed (either by X or Y)
      * read instructions (LDA, LDX, LDY, EOR, AND, ORA, ADC, SBC, CMP, BIT, LAX, NOP).
      * @param indexRegister the register used for indexing. Either register X or Y.
-     * @throws IllegalCycleException
+     * @throws IllegalCycleException if the instruction is called at a cycle it shouldn't be.
      */
     private void zeroPageIndexedReadInstruction(byte indexRegister) throws IllegalCycleException {
         switch (this.currentInstructionCycle) {
@@ -800,7 +801,7 @@ public class MOS6502 {
     /**
      * Implements cycle-to-cycle behavior of Absolute addressing read instructions
      * (LDA, LDX, LDY, EOR, AND, ORA, ADC, SBC, CMP, BIT, LAX, NOP)
-     * @throws IllegalCycleException
+     * @throws IllegalCycleException if the instruction is called at a cycle it shouldn't be.
      */
     private void absoluteReadInstruction() throws IllegalCycleException {
         switch (this.currentInstructionCycle) {
@@ -830,7 +831,7 @@ public class MOS6502 {
      * (LDA, LDX, LDY, EOR, AND, ORA, ADC, SBC, CMP, BIT, LAX, LAE, SHS, NOP).
      * Runs for an extra cycle if page crossing.
      * @param indexRegister register containing the index. Either register X or Y.
-     * @throws IllegalCycleException
+     * @throws IllegalCycleException if the instruction is called at a cycle it shouldn't be.
      */
     private void absoluteIndexedReadInstruction(byte indexRegister) throws IllegalCycleException {
         switch (this.currentInstructionCycle) {
@@ -873,7 +874,7 @@ public class MOS6502 {
     /**
      * Implements the cycle-by-cycle behavior of Indexed Indirect (A.K.A Indexed,X) addressing mode read instructions
      * (LDA, ORA, EOR, AND, ADC, CMP, SBC, LAX)
-     * @throws IllegalCycleException
+     * @throws IllegalCycleException if the instruction is called at a cycle it shouldn't be.
      */
     private void indexedIndirectReadInstruction() throws IllegalCycleException {
         switch (this.currentInstructionCycle) {
@@ -917,7 +918,7 @@ public class MOS6502 {
      * Implements the cycle-by-cycle behavior of the Indirect Indexed (A.K.A. Indexed,Y) addressing mode
      * for read instructions (LDA, EOR, AND, ORA, ADC, SBC, CMP).
      * Takes an extra cycle in case of page crossing.
-     * @throws IllegalCycleException
+     * @throws IllegalCycleException if the instruction is called at a cycle it shouldn't be.
      */
     private void indirectIndexedReadInstruction() throws IllegalCycleException {
         switch (this.currentInstructionCycle) {
@@ -1020,17 +1021,17 @@ public class MOS6502 {
         final int lowNibble = (unsignedAccumulator & 0xF) + (unsignedOperand & 0xF) + carryIn;
         int sum = lowNibble; // This is the value that will be returned
         if (lowNibble > 0x9) {
-            sum = ((sum + 0x06) & 0xF) + 0x10;
+            sum = ((lowNibble + 0x06) & 0xF) + 0x10;
         }
 
         // Add most significant nibble (highest digit)
         sum += (unsignedAccumulator & 0xF0) + (unsignedOperand & 0xF0);
-        if (sum > 0x90) {
+        if (sum >= 0xA0) {
             sum += 0x60;
         }
 
         // Carry is set based on the final result
-        if (sum > 0x99) {
+        if (sum >= 0x100) {
             this.setCarry();
         } else {
             this.unsetCarry();
@@ -1054,38 +1055,6 @@ public class MOS6502 {
         return (byte) sum;
     }
 
-    /**
-     * Converts decimal number to hex.
-     * Essentially reverts the conversion done with hexToDecimal.
-     * This is needed because the CPU will still be in decimal mode.
-     * E.g. in test 69 0a e1 we're adding 10 + 2 + carry = 13, but it needs to be stored as 19 decimal (0x13).
-     * @param n the number to be converted.
-     * @return the converted number.
-     */
-    byte decimalToHex(byte n) {
-        final int unsignedN = n & 0xFF;
-        final int tens = unsignedN / 10;
-        final int units = unsignedN % 10;
-        return (byte) (tens * 16 + units);
-    }
-
-    /**
-     * Converts hex number to binary coded decimal (BCD).
-     * Values 0x00-0x09 are equal to 0-9 (0b0000-0b1111). Values 0xA-0xF are invalid.
-     * 0x10-0x90 are equal to 10-90. Values 0xA0-0xF0 are invalid.
-     * This way, a byte can represent values 00-99.
-     * @param n value to be converted.
-     * @return the converted number.
-     */
-    byte hexToDecimal(byte n) {
-        final int lowNibble = n & 0xF;
-        final int highNibble = n & 0xF0;
-
-        final int carry = lowNibble > 9 ? 10 : 0;
-        final int decimalLowNibble = Math.min(lowNibble, 9);
-        final int decimalHighNibble = Math.min(((highNibble + carry) >> 4), 90);
-        return (byte) (decimalHighNibble * 10 + decimalLowNibble);
-    }
     /**
      * Sets zero flag if 'number' == 0,
      * otherwise sets negative flag if 'number' < 0.
