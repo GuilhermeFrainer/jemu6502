@@ -178,6 +178,11 @@ class ControllerUnitTest {
             MOS6502.IllegalCycleException,
             MOS6502.IllegalAddressingModeException {
         String[] instructions = {
+                //"0a", "06", "16", "0e", "1e",
+                "06", "16", "0e", "1e",
+                "ea",
+                "24", "2c",
+                "c9", "c5", "d5", "cd", "dd", "d9", "c1", "d1",
                 "00", "a9", "a5", "b5", "ad", "bd", "b9", "a1", "b1",
                 "aa", "e8",
                 "a2", "a6", "b6", "ae", "be",
@@ -244,12 +249,10 @@ class ControllerUnitTest {
         String message = "Test case " + testCase.name
                 + String.format(" of opcode 0x%02X", emulator.cpu.getCurrentInstruction().opcode());
 
-        /*
         System.out.println("Logs:");
         for (int i = 0; i < logList.size(); i++) {
             System.out.println(logList.get(i).toString());
         }
-         */
         for (int i = 0; i < logList.size(); i++) {
             assertEquals(
                     testCase.cycles.get(i).getAddressAsInt(),

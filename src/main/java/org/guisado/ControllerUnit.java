@@ -13,7 +13,6 @@ public class ControllerUnit {
 
     /**
      * Executes program in memory
-     *
      * @throws MOS6502.IllegalCycleException
      * @throws MOS6502.IllegalAddressingModeException
      * @throws MOS6502.UnimplementedInstructionException
@@ -82,9 +81,9 @@ public class ControllerUnit {
     }
 
     public class Log {
-        private short address;
-        private byte value;
-        private MOS6502.ReadWrite action;
+        private final short address;
+        private final byte value;
+        private final MOS6502.ReadWrite action;
 
         public Log(short address, byte value, MOS6502.ReadWrite action) {
             this.address = address;
@@ -123,10 +122,10 @@ public class ControllerUnit {
      * Runs one instruction and returns array of object containing the state
      * of the address and data buses and of the read/write pin cycle-by-cycle.
      * Exists solely for testing.
-     * @return
-     * @throws MOS6502.UnimplementedInstructionException
+     * @return ArrayList containing cycle-by-cycle behavior for the R/W, address and data pins.
+     * @throws MOS6502.UnimplementedInstructionException in case an unimplemented instruction is run.
      * @throws MOS6502.IllegalAddressingModeException
-     * @throws MOS6502.IllegalCycleException
+     * @throws MOS6502.IllegalCycleException in case an instruction reaches a cycle it's not supposed to.
      */
     protected ArrayList<Log> runOneInstructionWithLogging()
             throws MOS6502.UnimplementedInstructionException,
@@ -149,18 +148,17 @@ public class ControllerUnit {
                 this.cpu.setDataBus(valueAtAddress);
             } else if (this.cpu.getReadWritePin() == MOS6502.ReadWrite.Write) {
                 byte valueInDataBus = this.cpu.getDataBus();
+                System.out.println("Value in data bus: " + (int) (valueInDataBus & 0xFF));
                 short address = this.cpu.getAddressBus();
                 this.memory.write(valueInDataBus, address);
             }
-            // It seems that logging must be done after the tick
-            //this.cpu.tick();
             logArray.add(new Log(
                     this.cpu.getAddressBus(),
                     this.cpu.getDataBus(),
                     this.cpu.getReadWritePin()
             ));
         }
-        // Executes the opcode
+        // A last read/write is needed to update the data and address pins
         if (this.cpu.getReadWritePin() == MOS6502.ReadWrite.Read) {
             byte valueAtAddress = this.memory.read(this.cpu.getAddressBus());
             this.cpu.setDataBus(valueAtAddress);
@@ -169,7 +167,8 @@ public class ControllerUnit {
             short address = this.cpu.getAddressBus();
             this.memory.write(valueInDataBus, address);
         }
-        this.cpu.executeOpcode(this.cpu.getCurrentInstruction().opcode());
+        // Read instructions are executed at the end
+        this.cpu.executeOpcodeAtCycleEnd(this.cpu.getCurrentInstruction().opcode());
         return logArray;
     }
 }

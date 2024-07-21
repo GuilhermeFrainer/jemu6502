@@ -103,13 +103,28 @@ class MOS6502Test {
      * The following tests were based on failed tests from Tom Harte's test suite.
      */
 
-    @Test
-    void test_69_0a_e1() {
+    /**
+     * Used to instantiate a CPU for simple testing.
+     * Originally written for testing immediate instructions,
+     * since they're the first to be tested and only depend on the status register,
+     * the accumulator and an address in memory.
+     * @param status status for the CPU instance.
+     * @param accumulator accumulator for the CPU instance.
+     * @param dataBus operand for the instruction.
+     * @return CPU instance with the status, accumulator and dataBus initialized for testing.
+     */
+    MOS6502 setUpCPUForTesting(int status, int accumulator, int dataBus) {
         MOS6502 cpu = new MOS6502();
 
-        cpu.setStatus(175); // D is set
-        cpu.setAccumulator(2);
-        cpu.setDataBus(10);
+        cpu.setStatus(status);
+        cpu.setAccumulator(accumulator);
+        cpu.setDataBus(dataBus);
+        return cpu;
+    }
+
+    @Test
+    void test_69_0a_e1() {
+        MOS6502 cpu = setUpCPUForTesting(175, 2, 10);
         cpu.adc();
         assertEquals(19, cpu.getAccumulatorAsInt());
         assertEquals(44, cpu.getStatusAsInt());
@@ -117,11 +132,7 @@ class MOS6502Test {
 
     @Test
     void test_69_8f_b3() {
-        MOS6502 cpu = new MOS6502();
-
-        cpu.setStatus(111); // D is set
-        cpu.setAccumulator(227);
-        cpu.setDataBus(143);
+        MOS6502 cpu = setUpCPUForTesting(111, 227, 143);
         cpu.adc();
         assertEquals(217, cpu.getAccumulatorAsInt());
         assertEquals(109, cpu.getStatusAsInt());
@@ -129,11 +140,7 @@ class MOS6502Test {
 
     @Test
     void test_69_84_43() {
-        MOS6502 cpu = new MOS6502();
-
-        cpu.setStatus(44);
-        cpu.setAccumulator(12);
-        cpu.setDataBus(132);
+        MOS6502 cpu = setUpCPUForTesting(44, 12, 132);
         cpu.adc();
         assertEquals(150, cpu.getAccumulatorAsInt());
         assertEquals(172, cpu.getStatusAsInt());
@@ -141,11 +148,7 @@ class MOS6502Test {
 
     @Test
     void test_69_7b_0a() {
-        MOS6502 cpu = new MOS6502();
-
-        cpu.setStatus(44);
-        cpu.setAccumulator(28);
-        cpu.setDataBus(123);
+        MOS6502 cpu = setUpCPUForTesting(44, 28, 123);
         cpu.adc();
         assertEquals(157, cpu.getAccumulatorAsInt());
         assertEquals(236, cpu.getStatusAsInt());
@@ -153,13 +156,17 @@ class MOS6502Test {
 
     @Test
     void test_e9_c4_08() {
-        MOS6502 cpu = new MOS6502();
-
-        cpu.setStatus(109);
-        cpu.setAccumulator(156);
-        cpu.setDataBus(196);
+        MOS6502 cpu = setUpCPUForTesting(109, 156, 196);
         cpu.sbc();
         assertEquals(120, cpu.getAccumulatorAsInt());
         assertEquals(172, cpu.getStatusAsInt());
+    }
+
+    @Test
+    void test_c9_bb_bf() {
+        MOS6502 cpu = setUpCPUForTesting(175, 16, 187);
+        cpu.cmp();
+        assertEquals(16, cpu.getAccumulatorAsInt());
+        assertEquals(44, cpu.getStatusAsInt());
     }
 }
