@@ -178,12 +178,16 @@ class ControllerUnitTest {
             MOS6502.IllegalCycleException,
             MOS6502.IllegalAddressingModeException {
         String[] instructions = {
-                //"0a", "06", "16", "0e", "1e",
-                "06", "16", "0e", "1e",
+                "00",
+                "4a", "46", "56", "4e", "5e",
+                "e0", "e4", "ec",
+                "c0", "c4", "cc",
+                "18", "d8", "58", "b8",
+                "0a", "06", "16", "0e", "1e",
                 "ea",
                 "24", "2c",
                 "c9", "c5", "d5", "cd", "dd", "d9", "c1", "d1",
-                "00", "a9", "a5", "b5", "ad", "bd", "b9", "a1", "b1",
+                "a9", "a5", "b5", "ad", "bd", "b9", "a1", "b1",
                 "aa", "e8",
                 "a2", "a6", "b6", "ae", "be",
                 "a0", "a4", "b4", "ac", "bc",
@@ -226,7 +230,6 @@ class ControllerUnitTest {
 
     void runTestCase(String line)
             throws MOS6502.UnimplementedInstructionException,
-            MOS6502.IllegalAddressingModeException,
             MOS6502.IllegalCycleException {
         JsonTestCase testCase = new JsonTestCase(new JSONObject(line));
         ControllerUnit emulator = new ControllerUnit();

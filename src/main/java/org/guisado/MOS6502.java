@@ -180,7 +180,7 @@ public class MOS6502 {
      * of the address somewhere, and it can't be in the address bus, since we need to read the
      * high byte of the new address.
      * This *shouldn't* be too big of a problem, since it *should* be written to in one cycle
-     * and read on the next one.
+     * and read on the next one (following Cherkov's Gun principle).
      */
     private byte retainedByte;
 
@@ -377,6 +377,7 @@ public class MOS6502 {
          * The last cycle in an instruction.
          * Moved here (from the bottom of this function)
          * otherwise Read-Modify-Write instructions wouldn't work properly.
+         * Might have to change the "null" condition later.
          */
         if (this.currentInstruction == null || this.currentInstructionCycle > this.currentInstruction.cycles() + this.pageCrossed) {
             // This might have to be fixed later
@@ -387,7 +388,7 @@ public class MOS6502 {
             // First cycle of every instruction
             // Executes the previous instruction before fetching the new one
             try {
-                this.executeOpcodeAtCycleEnd(this.currentInstruction.opcode());
+                this.executeOpcode(this.currentInstruction.opcode());
             } catch (NullPointerException e) {
                 /* Ignores the exception if this is the first cycle,
                  * as there wouldn't be a "previous" instruction in this situation
@@ -401,16 +402,21 @@ public class MOS6502 {
             this.programCounter++;
         } else if (this.currentInstructionCycle > 1) {
             switch ((int) this.currentInstruction.opcode() & 0xFF) {
+                // Implied addressing mode only instructions
+                // INX, NOP, TAX
+                // Clear flag instructions: CLC, CLD, CLI, CLV
+                case 0xEA, 0xAA, 0xE8, 0x18, 0xD8, 0x58, 0xB8
+                        -> this.impliedAddressingInstruction();
                 // Read instructions
-                // ADC, AND, BIT, CMP, EOR, INX, LDA, LDX, LDY, NOP, ORA, SBC, TAX
-                case 0x69, 0x29, 0xC9, 0x49, 0xE8, 0xA9, 0xA2, 0xA0, 0xEA, 0x09, 0xE9, 0xAA
+                // ADC, AND, BIT, CMP, EOR, LDA, LDX, LDY, ORA, SBC, CPX, CPY
+                case 0x69, 0x29, 0xC9, 0x49, 0xA9, 0xA2, 0xA0, 0x09, 0xE9, 0xE0, 0xC0
                         -> this.immediateAddressingInstruction();
-                case 0x65, 0x25, 0x24, 0xC5, 0x45, 0xA5, 0xA6, 0xA4, 0x05,
-                     0xE5 -> this.zeroPageReadInstruction();
+                case 0x65, 0x25, 0x24, 0xC5, 0x45, 0xA5, 0xA6, 0xA4, 0x05, 0xE5, 0xE4, 0xC4
+                        -> this.zeroPageReadInstruction();
                 case 0x75, 0x35, 0xD5, 0x55, 0xB5, 0xB4, 0x15, 0xF5
                         -> this.zeroPageIndexedReadInstruction(this.registerX);
                 case 0xB6 -> this.zeroPageIndexedReadInstruction(this.registerY); // LDY is the only one here
-                case 0x6D, 0x2D, 0x2C, 0xCD, 0x4D, 0xAD, 0xAE, 0xAC, 0x0D, 0xED
+                case 0x6D, 0x2D, 0x2C, 0xCD, 0x4D, 0xAD, 0xAE, 0xAC, 0x0D, 0xED, 0xEC, 0xCC
                         -> this.absoluteReadInstruction();
                 case 0x7D, 0x3D, 0xDD, 0x5D, 0xBD, 0xBC, 0x1D, 0xFD
                         -> this.absoluteIndexedReadInstruction(this.registerX);
@@ -422,9 +428,17 @@ public class MOS6502 {
                         -> this.indirectIndexedReadInstruction();
 
                 // Read-Modify-Write instructions
-                // ASL
-                case 0x0A -> this.impliedAddressingInstruction();
-                case 0x06 -> this.zeroPageModifyInstruction();
+                // ASL, LSR
+                case 0x0A, 0x4A
+                        -> this.impliedAddressingInstruction();
+                case 0x06, 0x46
+                        -> this.zeroPageModifyInstruction();
+                case 0x16, 0x56
+                        -> this.zeroPageIndexedModifyInstruction(this.registerX);
+                case 0x0E, 0x4E
+                        -> this.absoluteModifyInstruction();
+                case 0x1E, 0x5E
+                        -> this.absoluteIndexedModifyInstruction();
                 // BRK
                 case 0x00 -> this.brkCycleByCycle();
 
@@ -432,6 +446,9 @@ public class MOS6502 {
                         String.format("Opcode not implemented in tick function: 0x%02X",
                                 this.currentInstruction.opcode()));
             }
+        }
+        if (this.currentInstructionCycle == this.currentInstruction.cycles() + this.pageCrossed) {
+            this.executeOpcode(this.currentInstruction.opcode());
         }
         // Checks if the current instruction has finished running.
         // TRY PUTTING THIS AT THE BEGINNING OF THE NEXT CYCLE INSTEAD
@@ -455,7 +472,7 @@ public class MOS6502 {
      * @param opcode opcode to execute.
      * @throws UnimplementedInstructionException in case the opcode hasn't been implemented.
      */
-    protected void executeOpcodeAtCycleEnd(byte opcode) throws UnimplementedInstructionException {
+    protected void executeOpcode(byte opcode) throws UnimplementedInstructionException {
         switch ((int) opcode & 0xFF) {
             // ADC
             case 0x69, 0x65, 0x75, 0x6D, 0x7D, 0x79, 0x61, 0x71 -> this.adc();
@@ -464,7 +481,7 @@ public class MOS6502 {
             case 0x29, 0x25, 0x35, 0x2D, 0x3D, 0x39, 0x21, 0x31 -> this.and();
 
             // ASL
-            case 0x0A -> this.asl();
+            case 0x0A, 0x06, 0x16, 0x0E, 0x1E -> this.asl();
 
             // BIT
             case 0x24, 0x2C -> this.bit();
@@ -472,10 +489,22 @@ public class MOS6502 {
             // BRK
             case 0x00 -> this.brk();
 
+            // CLEAR FLAG INSTRUCTIONS
+            case 0x18 -> this.clc();
+            case 0xD8 -> this.cld();
+            case 0x58 -> this.cli();
+            case 0xB8 -> this.clv();
+
             // COMPARISON INSTRUCTIONS
 
             // CMP
             case 0xC9, 0xC5, 0xD5, 0xCD, 0xDD, 0xD9, 0xC1, 0xD1 -> this.cmp();
+
+            // CPX
+            case 0xE0, 0xE4, 0xEC -> this.cpx();
+
+            // CPY
+            case 0xC0, 0xC4, 0xCC -> this.cpy();
 
             // EOR
             case 0x49, 0x45, 0x55, 0x4D, 0x5D, 0x59, 0x41, 0x51 -> this.eor();
@@ -496,6 +525,9 @@ public class MOS6502 {
             // LDY
             case 0xA0, 0xA4, 0xB4, 0xAC, 0xBC -> this.ldy();
 
+            // LSR
+            case 0x4A, 0x46, 0x56, 0x4E, 0x5E -> this.lsr();
+
             // NOP
             case 0xEA -> { /* This does nothing. */}
 
@@ -509,45 +541,9 @@ public class MOS6502 {
             // TAX
             case 0xAA -> this.tax();
 
-            default -> {
-                if (this.currentInstruction.type() == Instruction.InstructionType.Read) {
-                    throw new UnimplementedInstructionException(
+            default -> throw new UnimplementedInstructionException(
                             String.format("Unimplemented instruction: 0x%02X",
                                     this.currentInstruction.opcode()));
-                } else if (this.currentInstruction.addressingMode() == Instruction.AddressingMode.Implied ||
-                this.currentInstruction.addressingMode() == Instruction.AddressingMode.Accumulator) {
-                    throw new UnimplementedInstructionException(
-                            String.format("Not an accumulator or implied addressing mode opcode: 0x%02X",
-                                    this.currentInstruction.opcode()));
-                }
-            }
-        }
-    }
-
-    private void executeOpcodeDuringCycle(byte opcode) throws UnimplementedInstructionException {
-        switch ((int) opcode & 0xFF) {
-            // ASL
-            case 0x06, 0x16, 0x0E, 0x1E -> this.asl();
-            default -> {
-                if (this.currentInstruction.type() == Instruction.InstructionType.Read) {
-                    throw new UnimplementedInstructionException(
-                            String.format("Read instruction should not be called in this function: 0x%02X",
-                                    this.currentInstruction.opcode())
-                    );
-                } else if (this.currentInstruction.addressingMode() == Instruction.AddressingMode.Accumulator ||
-                    this.currentInstruction.addressingMode() == Instruction.AddressingMode.Implied) {
-                    throw new UnimplementedInstructionException(
-                            String.format("Implied or accumulator addressing mode opcodes"
-                            + " should be called at the end of the cycle: 0x%02X",
-                                    this.currentInstruction.opcode())
-                    );
-                } else {
-                    throw new UnimplementedInstructionException(
-                            String.format("Unimplemented opcode: 0x%02X",
-                                    this.currentInstruction.opcode())
-                    );
-                }
-            }
         }
     }
 
@@ -644,13 +640,55 @@ public class MOS6502 {
      * in the status is set to one.
      */
     private void brk() {
-        this.programCounter = (short) ((this.programCounter & 0x00FF) | (this.dataBus << 8));
+        System.out.println("PC in: " + this.getProgramCounterAsInt());
+        final int unsignedDataBus = dataBus & 0xFF;
+        System.out.println("Unsigned data bus: " + unsignedDataBus
+                + " " + Integer.toString(unsignedDataBus, 2));
+        final int highByte = unsignedDataBus << 8;
+        System.out.println("High byte: " + highByte
+            + " " + Integer.toString(highByte, 2));
+        System.out.println("Retained byte: " + (this.retainedByte & 0xFF)
+                + " " + Integer.toString((this.retainedByte & 0xFF), 2));
+        this.programCounter = (short) ((this.retainedByte & 0xFF) | highByte);
+        this.programCounter = (short) ((this.retainedByte & 0xFF) | highByte);
+        System.out.println("PC out: " + this.getProgramCounterAsInt());
     }
 
     /* =
      * C
      === */
 
+    /* =======================
+     * CLEAR FLAG INSTRUCTIONS
+     ========================= */
+
+    /**
+     * Sets the carry flag to 0.
+     */
+    private void clc() {
+        this.status ^= CARRY;
+    }
+
+    /**
+     * Sets the decimal flag to 0.
+     */
+    private void cld() {
+        this.status ^= DECIMAL;
+    }
+
+    /**
+     * Sets the interrupt disable flag to 0.
+     */
+    private void cli() {
+        this.status ^= INTERRUPT_DISABLE;
+    }
+
+    /**
+     * Sets the overflow flag to 0.
+     */
+    private void clv() {
+        this.status ^= OVERFLOW;
+    }
     /* =======================
      * COMPARISON INSTRUCTIONS
      ========================= */
@@ -669,6 +707,33 @@ public class MOS6502 {
         this.updateZeroAndNegativeFlags((byte) ((this.accumulator & 0xFF) - (this.dataBus & 0xFF)));
     }
 
+    /**
+     * Compares the (unsigned) values in the X register and in an address in memory.
+     * Doesn't write to the register.
+     * Sets the zero, negative and carry flags as appropriate.
+     */
+    private void cpx() {
+        if ((this.registerX & 0xFF) >= (this.dataBus & 0xFF)) {
+            this.setCarry();
+        } else {
+            this.unsetCarry();
+        }
+        this.updateZeroAndNegativeFlags((byte) ((this.registerX & 0xFF) - (this.dataBus & 0xFF)));
+    }
+
+    /**
+     * Compares the (unsigned) values in the Y register and in an address in memory.
+     * Doesn't write to the register.
+     * Sets the zero, negative and carry flags as appropriate.
+     */
+    private void cpy() {
+        if ((this.registerY & 0xFF) >= (this.dataBus & 0xFF)) {
+            this.setCarry();
+        } else {
+            this.unsetCarry();
+        }
+        this.updateZeroAndNegativeFlags((byte) ((this.registerY & 0xFF) - (this.dataBus & 0xFF)));
+    }
     /* ===
      * EOR
      ===== */
@@ -721,6 +786,32 @@ public class MOS6502 {
     private void ldy() {
         this.registerY = this.dataBus;
         this.updateZeroAndNegativeFlags(this.registerY);
+    }
+
+    /**
+     * Shifts the bits in the accumulator or in memory to the right.
+     * The bit that was in bit 0 is pushed onto the carry flag.
+     * Bit 7 is set to 0.
+     * Updates the zero and negative flags accordingly.
+     */
+    private void lsr() {
+        if (this.currentInstruction.addressingMode() == Instruction.AddressingMode.Accumulator) {
+            if ((this.accumulator & 1) != 0) {
+                this.setCarry();
+            } else {
+                this.unsetCarry();
+            }
+            this.accumulator >>= 1;
+            this.accumulator &= 0b01111111;
+        } else {
+            if ((this.dataBus & 1) != 0) {
+                this.setCarry();
+            } else {
+                this.unsetCarry();
+            }
+            this.dataBus >>= 1;
+            this.dataBus &= 0b01111111;
+        }
     }
 
     /*
@@ -829,7 +920,7 @@ public class MOS6502 {
             }
             // "Fetch PCH"
             case 7 -> {
-                this.programCounter = (short) ((this.programCounter & 0xFF00) | this.dataBus);
+                this.retainedByte = this.dataBus;
                 this.addressBus = IRQ_VECTOR_HIGH;
             }
             default -> throw new IllegalCycleException(this);
@@ -1083,7 +1174,7 @@ public class MOS6502 {
      ================================ */
 
     /**
-     * Represents the behavior of Zero Page Read-Modify-Write Instructions
+     * Represents the behavior of Zero Page Read-Modify-Write instructions.
      * (ASL, LSR, ROL, ROR, INC, DEC, SLO, SRE, RLA, RRA, ISB, DCP)
      * @throws IllegalCycleException in case the instruction reaches a cycle it's not supposed to.
      */
@@ -1095,19 +1186,120 @@ public class MOS6502 {
                 this.programCounter++;
             }
             // "Read from effective address"
-            case 3 -> {
-                this.addressBus = (short) (this.dataBus & 0xFF);
+            case 3 -> this.addressBus = (short) (this.dataBus & 0xFF);
+            // "Write the value back to effective address, and do the operation on it"
+            case 4 -> this.readWritePin = ReadWrite.Write;
+            // "Write the new value to the effective address"
+            case 5 -> { }
+            default -> throw new IllegalCycleException("This instruction accepts at most "
+                    + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
+        }
+    }
+
+    /**
+     * Represents the behavior of Zero Page Indexed Read-Modify-Write instructions.
+     * (ASL, LSR, ROL, ROR, INC, DEC, SLO, SRE, RLA, RRA, ISB, DCP)
+     * @param indexRegister the register used for indexing (either X or Y)
+     * @throws IllegalCycleException if the instruction reaches a cycle it's not supposed to.
+     * @throws UnimplementedInstructionException if the CPU calls this function when an instruction not listed above
+     *                                           is running.
+     */
+    private void zeroPageIndexedModifyInstruction(byte indexRegister)
+            throws IllegalCycleException, UnimplementedInstructionException {
+        switch (this.currentInstructionCycle) {
+            // "Fetch address, increment PC"
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.programCounter++;
+            }
+            // "Read from address, add index register X to it"
+            case 3 -> this.addressBus = (short) ((short) this.dataBus & 0xFF);
+            // "Read from effective address"
+            case 4 -> {
+                this.addressBus += indexRegister;
+                this.addressBus &= 0xFF; // The effective address is always at page zero.
             }
             // "Write the value back to effective address, and do the operation on it"
+            case 5 -> this.readWritePin = ReadWrite.Write;
+            // "Write the new value to effective address"
+            case 6 -> { }
+            default -> throw new IllegalCycleException("This instruction accepts at most "
+                    + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
+        }
+    }
+
+    /**
+     * Implements cycle-by-cycle behavior of absolute addressing read-modify-write instructions.
+     * (ASL, LSR, ROL, ROR, INC, DEC, SLO, SRE, RLA, RRA, ISB, DCP)
+     * @throws IllegalCycleException if the instruction runs for longer than it should.
+     * @throws UnimplementedInstructionException if this function is called during the execution
+     *                                           of an instruction not listed above.
+     */
+    private void absoluteModifyInstruction()
+            throws IllegalCycleException, UnimplementedInstructionException {
+        switch (this.currentInstructionCycle) {
+            // "Fetch low byte of address, increment PC"
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.programCounter++;
+            }
+            // "Fetch high byte of address, increment PC"
+            case 3 -> {
+                this.retainedByte = this.dataBus; // Saves low byte of address for later
+                this.addressBus = this.programCounter;
+                this.programCounter++;
+            }
+            // "Read from effective address"
+            case 4 -> this.addressBus = (short) ((short) (this.dataBus << 8) | (this.retainedByte & 0xFF));
+            // "Write the value back to effective address, and do the operation on it"
+            case 5 -> this.readWritePin = ReadWrite.Write;
+            // "Write the new value to effective address"
+            case 6 -> { }
+            default -> throw new IllegalCycleException("This instruction accepts at most "
+                    + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
+        }
+    }
+
+    /**
+     * Implements the cycle-to-cycle behavior of absolute indexed read-modify-write instructions.
+     * (ASL, LSR, ROL, ROR, INC, DEC, SLO, SRE, RLA, RRA, ISB, DCP)
+     * @throws IllegalCycleException if the instruction reaches a cycle it's not supposed to.
+     * @throws UnimplementedInstructionException if this function is called by an instruction it's not supposed to.
+     */
+    private void absoluteIndexedModifyInstruction()
+            throws IllegalCycleException, UnimplementedInstructionException{
+        switch (this.currentInstructionCycle) {
+            // "Fetch low byte of address, increment PC"
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.programCounter++;
+            }
+            // "Fetch high byte of address, add index register X to low address byte, increment PC"
+            case 3 -> {
+                this.retainedByte = this.dataBus;
+                this.addressBus = this.programCounter;
+                this.programCounter++;
+            }
+            // "Read from effective address, fix the high byte of effective address"
             case 4 -> {
-                this.readWritePin = ReadWrite.Write;
+                final int sum = (this.retainedByte & 0xFF) + (this.registerX & 0xFF);
+                // Page crossing is ignored now, but will be fixed on the next cycle
+                if (sum >= 0x100) {
+                    this.pageCrossed = 1;
+                }
+                this.addressBus = (short) ((short) (this.dataBus << 8) | (sum & 0xFF));
             }
-            // "Write the new value to the effective address"
+            // "Re-read from effective address"
             case 5 -> {
-                System.out.println("Data in: " + (int) (this.getDataBus() & 0xFF));
-                this.executeOpcodeDuringCycle(this.currentInstruction.opcode());
-                System.out.println("Data out: " + (int) (this.getDataBus() & 0xFF));
+                if (this.pageCrossed == 1) {
+                    this.pageCrossed = 0;
+                    this.addressBus += 0x100;
+                }
             }
+            // "Write the value back to effective address, and do the operation on it"
+            case 6 -> this.readWritePin = ReadWrite.Write;
+            // "Write the new value to effective address"
+            case 7 -> { }
             default -> throw new IllegalCycleException("This instruction accepts at most "
                     + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
         }

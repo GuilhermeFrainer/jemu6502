@@ -142,15 +142,59 @@ public record Instruction(org.guisado.Instruction.AddressingMode addressingMode,
         // BRK
         instructionSet[0x00] = new Instruction(AddressingMode.Implied, (byte) 0x00, 1, 7, "BRK", InstructionType.Read);
 
+        /* =
+         * C
+         === */
+
+        /* =======================
+         * CLEAR FLAG INSTRUCTIONS
+         ========================= */
+
+        // CLC
+        instructionSet[0x18] = new Instruction(AddressingMode.Implied, (byte) 0x18, 1, 2, "CLC", InstructionType.Read);
+
+        // CLD
+        instructionSet[0xD8] = new Instruction(AddressingMode.Implied, (byte) 0xD8, 1, 2, "CLD", InstructionType.Read);
+
+        // CLI
+        instructionSet[0x58] = new Instruction(AddressingMode.Implied, (byte) 0x58, 1, 2, "CLI", InstructionType.Read);
+
+        // CLV
+        instructionSet[0xB8] = new Instruction(AddressingMode.Implied, (byte) 0xB8, 1, 2, "CLV", InstructionType.Read);
+
+        /* =======================
+         * COMPARISON INSTRUCTIONS
+         ========================= */
+
         // CMP
-        instructionSet[0xc9] = new Instruction(AddressingMode.Immediate, (byte) 0xc9, 2, 2, "CMP", InstructionType.Read);
-        instructionSet[0xc5] = new Instruction(AddressingMode.ZeroPage, (byte) 0xc5, 2, 3, "CMP", InstructionType.Read);
-        instructionSet[0xd5] = new Instruction(AddressingMode.ZeroPageX, (byte) 0xd5, 2, 4, "CMP", InstructionType.Read);
-        instructionSet[0xcd] = new Instruction(AddressingMode.Absolute, (byte) 0xcd, 3, 4, "CMP", InstructionType.Read);
-        instructionSet[0xdd] = new Instruction(AddressingMode.AbsoluteX, (byte) 0xdd, 3, 4, "CMP", InstructionType.Read);
-        instructionSet[0xd9] = new Instruction(AddressingMode.AbsoluteY, (byte) 0xd9, 3, 4, "CMP", InstructionType.Read);
-        instructionSet[0xc1] = new Instruction(AddressingMode.IndirectX, (byte) 0xc1, 2, 6, "CMP", InstructionType.Read);
-        instructionSet[0xd1] = new Instruction(AddressingMode.IndirectY, (byte) 0xd1, 2, 5, "CMP", InstructionType.Read);
+        instructionSet[0xC9] = new Instruction(AddressingMode.Immediate, (byte) 0xc9, 2, 2, "CMP", InstructionType.Read);
+        instructionSet[0xC5] = new Instruction(AddressingMode.ZeroPage, (byte) 0xc5, 2, 3, "CMP", InstructionType.Read);
+        instructionSet[0xD5] = new Instruction(AddressingMode.ZeroPageX, (byte) 0xd5, 2, 4, "CMP", InstructionType.Read);
+        instructionSet[0xCD] = new Instruction(AddressingMode.Absolute, (byte) 0xcd, 3, 4, "CMP", InstructionType.Read);
+        instructionSet[0xDD] = new Instruction(AddressingMode.AbsoluteX, (byte) 0xdd, 3, 4, "CMP", InstructionType.Read);
+        instructionSet[0xD9] = new Instruction(AddressingMode.AbsoluteY, (byte) 0xd9, 3, 4, "CMP", InstructionType.Read);
+        instructionSet[0xC1] = new Instruction(AddressingMode.IndirectX, (byte) 0xc1, 2, 6, "CMP", InstructionType.Read);
+        instructionSet[0xD1] = new Instruction(AddressingMode.IndirectY, (byte) 0xd1, 2, 5, "CMP", InstructionType.Read);
+
+        // CPX
+        instructionSet[0xE0] = new Instruction(AddressingMode.Immediate, (byte) 0xE0, 2, 2, "CPX", InstructionType.Read);
+        instructionSet[0xE4] = new Instruction(AddressingMode.ZeroPage, (byte) 0xE4, 2, 3, "CPX", InstructionType.Read);
+        instructionSet[0xEC] = new Instruction(AddressingMode.Absolute, (byte) 0xEC, 3, 4, "CPX", InstructionType.Read);
+
+        // CPY
+        instructionSet[0xC0] = new Instruction(AddressingMode.Immediate, (byte) 0xC0, 2, 2, "CPY", InstructionType.Read);
+        instructionSet[0xC4] = new Instruction(AddressingMode.ZeroPage, (byte) 0xC4, 2, 3, "CPY", InstructionType.Read);
+        instructionSet[0xCC] = new Instruction(AddressingMode.Absolute, (byte) 0xCC, 3, 4, "CPY", InstructionType.Read);
+
+        /* =
+         * D
+         === */
+
+        // DEC
+
+        /* =
+         * E
+         === */
 
         // EOR
         instructionSet[0x49] = new Instruction(AddressingMode.Immediate, (byte) 0x49, 2, 2, "EOR", InstructionType.Read);
@@ -162,12 +206,20 @@ public record Instruction(org.guisado.Instruction.AddressingMode addressingMode,
         instructionSet[0x41] = new Instruction(AddressingMode.IndirectX, (byte) 0x41, 2, 6, "EOR", InstructionType.Read);
         instructionSet[0x51] = new Instruction(AddressingMode.IndirectY, (byte) 0x51, 2, 5, "EOR", InstructionType.Read);
 
+        /* =
+         * I
+         === */
+
         /* ======================
          * INCREMENT INSTRUCTIONS
          ======================== */
 
         // INX
         instructionSet[0xE8] = new Instruction(AddressingMode.Implied, (byte) 0xE8, 1, 2, "INX", InstructionType.Read);
+
+        /* =
+         * L
+         === */
 
         /* =================
          * LOAD INSTRUCTIONS
@@ -197,8 +249,23 @@ public record Instruction(org.guisado.Instruction.AddressingMode addressingMode,
         instructionSet[0xAC] = new Instruction(AddressingMode.Absolute, (byte) 0xAC, 3, 4, "LDY", InstructionType.Read);
         instructionSet[0xBC] = new Instruction(AddressingMode.AbsoluteX, (byte) 0xBC, 3, 4, "LDY", InstructionType.Read);
 
+        // LSR
+        instructionSet[0x4a] = new Instruction(AddressingMode.Accumulator, (byte) 0x4a, 1, 2, "LSR", InstructionType.ReadModifyWrite);
+        instructionSet[0x46] = new Instruction(AddressingMode.ZeroPage, (byte) 0x46, 2, 5, "LSR", InstructionType.ReadModifyWrite);
+        instructionSet[0x56] = new Instruction(AddressingMode.ZeroPageX, (byte) 0x56, 2, 6, "LSR", InstructionType.ReadModifyWrite);
+        instructionSet[0x4e] = new Instruction(AddressingMode.Absolute, (byte) 0x4E, 3, 6, "LSR", InstructionType.ReadModifyWrite);
+        instructionSet[0x5e] = new Instruction(AddressingMode.AbsoluteX, (byte) 0x5e, 3, 7, "LSR", InstructionType.ReadModifyWrite);
+
+        /* =
+         * N
+         === */
+
         // NOP
         instructionSet[0xEA] = new Instruction(AddressingMode.Implied, (byte) 0xEA, 1, 2, "NOP", InstructionType.Read);
+
+        /* =
+         * O
+         === */
 
         // ORA
         instructionSet[0x09] = new Instruction(AddressingMode.Immediate, (byte) 0x09, 2, 2, "ORA", InstructionType.Read);
@@ -210,6 +277,10 @@ public record Instruction(org.guisado.Instruction.AddressingMode addressingMode,
         instructionSet[0x01] = new Instruction(AddressingMode.IndirectX, (byte) 0x01, 2, 6, "ORA", InstructionType.Read);
         instructionSet[0x11] = new Instruction(AddressingMode.IndirectY, (byte) 0x11, 2, 5, "ORA", InstructionType.Read);
 
+        /* =
+         * S
+         === */
+
         // SBC
         instructionSet[0xe9] = new Instruction(AddressingMode.Immediate, (byte) 0xe9, 2, 2, "SBC", InstructionType.Read);
         instructionSet[0xe5] = new Instruction(AddressingMode.ZeroPage, (byte) 0xe5, 2, 3, "SBC", InstructionType.Read);
@@ -219,6 +290,10 @@ public record Instruction(org.guisado.Instruction.AddressingMode addressingMode,
         instructionSet[0xf9] = new Instruction(AddressingMode.AbsoluteY, (byte) 0xf9, 3, 4, "SBC", InstructionType.Read);
         instructionSet[0xe1] = new Instruction(AddressingMode.IndirectX, (byte) 0xe1, 2, 6, "SBC", InstructionType.Read);
         instructionSet[0xf1] = new Instruction(AddressingMode.IndirectY, (byte) 0xf1, 2, 5, "SBC", InstructionType.Read);
+
+        /* =
+         * T
+         === */
 
         /* =====================
          * TRANSFER INSTRUCTIONS
