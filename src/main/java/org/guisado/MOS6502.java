@@ -133,16 +133,18 @@ public class MOS6502 {
         this.registerY = (byte) value;
     }
 
+    public boolean breakSign;
+
     public enum ReadWrite {
         Read,
         Write;
     }
 
-    // Bus
+    // Memory
+    final protected Memory memory;
     private ReadWrite readWritePin;
     private byte dataBus;
     private short addressBus;
-    public boolean breakSign;
 
     public ReadWrite getReadWritePin() {
         return this.readWritePin;
@@ -166,6 +168,26 @@ public class MOS6502 {
 
     public void setDataBus(int number) {
         this.dataBus = (byte) number;
+    }
+
+    void writeToMemory() {
+        this.readWritePin = ReadWrite.Write;
+        this.memory.write(this.dataBus, this.addressBus);
+    }
+
+    void readFromMemory() {
+        this.readWritePin = ReadWrite.Read;
+        this.dataBus = this.memory.read(this.addressBus);
+    }
+
+    /**
+     * Loads program into memory.
+     * @param program byte array the size of RAM to essentially replace the current RAM status.
+     */
+    void load(byte[] program) {
+        for (int i = 0; i < program.length; i++) {
+            this.memory.write(program[i], (short) i);
+        }
     }
 
     // Abstractions
@@ -269,6 +291,7 @@ public class MOS6502 {
         this.breakSign = false;
         this.readWritePin = ReadWrite.Read;
         this.pageCrossed = 0;
+        this.memory = new Memory64k();
     }
 
     /**
@@ -354,7 +377,7 @@ public class MOS6502 {
         // Must convert stack pointer to positive int
         this.addressBus = (short) (STACK_PAGE + (this.stackPointer & 0xFF));
         this.dataBus = value;
-        this.readWritePin = ReadWrite.Write;
+        this.writeToMemory();
         this.stackPointer--;
     }
 
@@ -365,7 +388,7 @@ public class MOS6502 {
     private void stackPop() {
         this.stackPointer++;
         this.addressBus = (short) (STACK_PAGE + this.stackPointer);
-        this.readWritePin = ReadWrite.Read;
+        this.readFromMemory();
     }
 
     /**
@@ -397,6 +420,7 @@ public class MOS6502 {
                     throw e;
                 }
             }
+            this.readFromMemory();
             this.currentInstruction = this.fetchInstruction(this.dataBus);
             this.addressBus = this.programCounter;
             this.programCounter++;
@@ -600,6 +624,7 @@ public class MOS6502 {
                 this.unsetCarry();
             }
             this.dataBus <<= 1;
+            this.writeToMemory();
         }
     }
 
@@ -640,18 +665,9 @@ public class MOS6502 {
      * in the status is set to one.
      */
     private void brk() {
-        System.out.println("PC in: " + this.getProgramCounterAsInt());
         final int unsignedDataBus = dataBus & 0xFF;
-        System.out.println("Unsigned data bus: " + unsignedDataBus
-                + " " + Integer.toString(unsignedDataBus, 2));
         final int highByte = unsignedDataBus << 8;
-        System.out.println("High byte: " + highByte
-            + " " + Integer.toString(highByte, 2));
-        System.out.println("Retained byte: " + (this.retainedByte & 0xFF)
-                + " " + Integer.toString((this.retainedByte & 0xFF), 2));
         this.programCounter = (short) ((this.retainedByte & 0xFF) | highByte);
-        this.programCounter = (short) ((this.retainedByte & 0xFF) | highByte);
-        System.out.println("PC out: " + this.getProgramCounterAsInt());
     }
 
     /* =
@@ -811,6 +827,7 @@ public class MOS6502 {
             }
             this.dataBus >>= 1;
             this.dataBus &= 0b01111111;
+            this.writeToMemory();
         }
     }
 
@@ -905,6 +922,7 @@ public class MOS6502 {
              */
             case 2 -> {
                 this.addressBus = this.programCounter;
+                this.readFromMemory();
                 this.programCounter++;
             }
             // "Push PCH on stack (with B flag set), decrement S"
@@ -916,12 +934,13 @@ public class MOS6502 {
             // "Fetch PCL"
             case 6 -> {
                 this.addressBus = IRQ_VECTOR_LOW;
-                this.readWritePin = ReadWrite.Read;
+                this.readFromMemory();
             }
             // "Fetch PCH"
             case 7 -> {
                 this.retainedByte = this.dataBus;
                 this.addressBus = IRQ_VECTOR_HIGH;
+                this.readFromMemory();
             }
             default -> throw new IllegalCycleException(this);
         }
@@ -936,6 +955,7 @@ public class MOS6502 {
         // "Read next instruction byte (and throw it away)"
         if (this.currentInstructionCycle == 2) {
             this.addressBus = this.programCounter;
+            this.readFromMemory();
         } else {
             throw new IllegalCycleException(this);
         }
@@ -950,6 +970,7 @@ public class MOS6502 {
         // "Fetch value, increment PC"
         if (this.currentInstructionCycle == 2) {
             this.addressBus = this.programCounter;
+            this.readFromMemory();
             this.programCounter++;
         } else {
             throw new IllegalCycleException("This instruction accepts at most "
@@ -971,11 +992,13 @@ public class MOS6502 {
             // "Fetch address, increment PC"
             case 2 -> {
                 this.addressBus = this.programCounter;
+                this.readFromMemory();
                 this.programCounter++;
             }
             // "Read from effective address"
             case 3 -> {
                 this.addressBus = (short) (this.dataBus & 0xFF);
+                this.readFromMemory();
             }
             default -> throw new IllegalCycleException("This instruction accepts at most "
                     + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
@@ -993,17 +1016,20 @@ public class MOS6502 {
             // "Fetch address, increment PC"
             case 2 -> {
                 this.addressBus = this.programCounter;
+                this.readFromMemory();
                 this.programCounter++;
             }
             // "Read from address, add index register to it"
             case 3 -> {
                 this.addressBus = (short) (this.dataBus & 0xFF);
+                this.readFromMemory();
             }
             // "Read from effective address"
             case 4 -> {
                 this.addressBus += (short) (indexRegister & 0xFF);
                 // Zeros out highest byte
                 this.addressBus &= 0x00FF;
+                this.readFromMemory();
             }
             default -> throw new IllegalCycleException("This instruction accepts at most "
                     + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
@@ -1020,18 +1046,21 @@ public class MOS6502 {
             // "Fetch low byte of address, increment PC"
             case 2 -> {
                 this.addressBus = this.programCounter;
+                this.readFromMemory();
                 this.programCounter++;
             }
             // "Fetch high byte of address, increment PC"
             case 3 -> {
                 this.retainedByte = this.dataBus;
                 this.addressBus = this.programCounter;
+                this.readFromMemory();
                 this.programCounter++;
             }
             // "Read from effective address"
             case 4 -> {
                 // Retails low byte and reads high byte from data bus
                 this.addressBus = (short) (this.dataBus << 8 | (this.retainedByte & 0xFF));
+                this.readFromMemory();
             }
             default -> throw new IllegalCycleException("This instruction accepts at most "
                     + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
@@ -1050,6 +1079,7 @@ public class MOS6502 {
             // "Fetch low byte of address, increment PC"
             case 2 -> {
                 this.addressBus = this.programCounter;
+                this.readFromMemory();
                 this.programCounter++;
             }
             // "Fetch high byte of address, add index register to low address byte, increment PC"
@@ -1057,6 +1087,7 @@ public class MOS6502 {
                 // Retain low byte
                 this.retainedByte = this.dataBus;
                 this.addressBus = programCounter;
+                this.readFromMemory();
                 this.programCounter++;
             }
             // "Read from effective address, fix the high byte of effective address"
@@ -1067,6 +1098,7 @@ public class MOS6502 {
                     this.pageCrossed = 1;
                 }
                 this.addressBus = (short) (this.dataBus << 8 | (short) (sum & 0xFF));
+                this.readFromMemory();
             }
             // "Re-read from effective address"
             // Only run if there's page crossing
@@ -1076,6 +1108,7 @@ public class MOS6502 {
                             " identified, but that didn't happen.");
                 }
                 this.addressBus += 0x100;
+                this.readFromMemory();
             }
 
             default -> throw new IllegalCycleException("This instruction accepts at most "
@@ -1093,17 +1126,20 @@ public class MOS6502 {
             // "Fetch pointer address, increment PC"
             case 2 -> {
                 this.addressBus = this.programCounter;
+                this.readFromMemory();
                 this.programCounter++;
             }
             // "Read from the address, add X to it"
             case 3 -> {
                 // Fetched data in this cycle is discarded
                 this.addressBus = (short) (this.dataBus & 0xFF);
+                this.readFromMemory();
             }
             // "Fetch effective address low"
             case 4 -> {
                 this.addressBus += (short) (this.registerX & 0xFF);
                 this.addressBus &= 0xFF; // Zeroes out most significant byte
+                this.readFromMemory();
             }
             // "Fetch effective address high"
             case 5 -> {
@@ -1115,11 +1151,13 @@ public class MOS6502 {
                  * In practice this means we have to zero out the most significant byte.
                  */
                 this.addressBus &= 0xFF;
+                this.readFromMemory();
             }
 
             // "Read from effective address"
             case 6 -> {
                 this.addressBus = (short) ((short) (this.dataBus << 8) | ((short) (this.retainedByte & 0xFF)));
+                this.readFromMemory();
             }
             default -> throw new IllegalCycleException("This instruction accepts at most "
                     + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
@@ -1137,15 +1175,20 @@ public class MOS6502 {
             // "Fetch pointer address, increment PC"
             case 2 -> {
                 this.addressBus = this.programCounter;
+                this.readFromMemory();
                 this.programCounter++;
             }
             // "Fetch effective address low"
-            case 3 -> this.addressBus = (short) (this.dataBus & 0xFF);
+            case 3 -> {
+                this.addressBus = (short) (this.dataBus & 0xFF);
+                this.readFromMemory();
+            }
             // "Fetch effective address high, add Y to low byte of effective address"
             case 4 -> {
                 this.retainedByte = this.dataBus;
                 this.addressBus++;
                 this.addressBus &= 0xFF; // Effective address is always fetched from zero page
+                this.readFromMemory();
             }
             // "Read from effective address, fix high byte of effective address"
             case 5 -> {
@@ -1155,6 +1198,7 @@ public class MOS6502 {
                     this.pageCrossed = 1;
                 }
                 this.addressBus = (short) (this.dataBus << 8 | (short) (sum & 0xFF));
+                this.readFromMemory();
             }
             // "Read from effective address"
             case 6 -> {
@@ -1163,6 +1207,7 @@ public class MOS6502 {
                             " identified, but that didn't happen.");
                 }
                 this.addressBus += 0x100;
+                this.readFromMemory();
             }
             default -> throw new IllegalCycleException("This instruction accepts at most "
                     + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
@@ -1183,12 +1228,18 @@ public class MOS6502 {
             // "Fetch address, increment PC"
             case 2 -> {
                 this.addressBus = this.programCounter;
+                this.readFromMemory();
                 this.programCounter++;
             }
             // "Read from effective address"
-            case 3 -> this.addressBus = (short) (this.dataBus & 0xFF);
+            case 3 -> {
+                this.addressBus = (short) (this.dataBus & 0xFF);
+                this.readFromMemory();
+            }
             // "Write the value back to effective address, and do the operation on it"
-            case 4 -> this.readWritePin = ReadWrite.Write;
+            case 4 -> {
+                this.writeToMemory();
+            }
             // "Write the new value to the effective address"
             case 5 -> { }
             default -> throw new IllegalCycleException("This instruction accepts at most "
@@ -1210,17 +1261,22 @@ public class MOS6502 {
             // "Fetch address, increment PC"
             case 2 -> {
                 this.addressBus = this.programCounter;
+                this.readFromMemory();
                 this.programCounter++;
             }
             // "Read from address, add index register X to it"
-            case 3 -> this.addressBus = (short) ((short) this.dataBus & 0xFF);
+            case 3 -> {
+                this.addressBus = (short) ((short) this.dataBus & 0xFF);
+                this.readFromMemory();
+            }
             // "Read from effective address"
             case 4 -> {
                 this.addressBus += indexRegister;
                 this.addressBus &= 0xFF; // The effective address is always at page zero.
+                this.readFromMemory();
             }
             // "Write the value back to effective address, and do the operation on it"
-            case 5 -> this.readWritePin = ReadWrite.Write;
+            case 5 -> this.writeToMemory();
             // "Write the new value to effective address"
             case 6 -> { }
             default -> throw new IllegalCycleException("This instruction accepts at most "
@@ -1241,18 +1297,23 @@ public class MOS6502 {
             // "Fetch low byte of address, increment PC"
             case 2 -> {
                 this.addressBus = this.programCounter;
+                this.readFromMemory();
                 this.programCounter++;
             }
             // "Fetch high byte of address, increment PC"
             case 3 -> {
                 this.retainedByte = this.dataBus; // Saves low byte of address for later
                 this.addressBus = this.programCounter;
+                this.readFromMemory();
                 this.programCounter++;
             }
             // "Read from effective address"
-            case 4 -> this.addressBus = (short) ((short) (this.dataBus << 8) | (this.retainedByte & 0xFF));
+            case 4 -> {
+                this.addressBus = (short) ((short) (this.dataBus << 8) | (this.retainedByte & 0xFF));
+                this.readFromMemory();
+            }
             // "Write the value back to effective address, and do the operation on it"
-            case 5 -> this.readWritePin = ReadWrite.Write;
+            case 5 -> this.writeToMemory();
             // "Write the new value to effective address"
             case 6 -> { }
             default -> throw new IllegalCycleException("This instruction accepts at most "
@@ -1272,12 +1333,14 @@ public class MOS6502 {
             // "Fetch low byte of address, increment PC"
             case 2 -> {
                 this.addressBus = this.programCounter;
+                this.readFromMemory();
                 this.programCounter++;
             }
             // "Fetch high byte of address, add index register X to low address byte, increment PC"
             case 3 -> {
                 this.retainedByte = this.dataBus;
                 this.addressBus = this.programCounter;
+                this.readFromMemory();
                 this.programCounter++;
             }
             // "Read from effective address, fix the high byte of effective address"
@@ -1288,16 +1351,18 @@ public class MOS6502 {
                     this.pageCrossed = 1;
                 }
                 this.addressBus = (short) ((short) (this.dataBus << 8) | (sum & 0xFF));
+                this.readFromMemory();
             }
             // "Re-read from effective address"
             case 5 -> {
                 if (this.pageCrossed == 1) {
                     this.pageCrossed = 0;
                     this.addressBus += 0x100;
+                    this.readFromMemory();
                 }
             }
             // "Write the value back to effective address, and do the operation on it"
-            case 6 -> this.readWritePin = ReadWrite.Write;
+            case 6 -> this.writeToMemory();
             // "Write the new value to effective address"
             case 7 -> { }
             default -> throw new IllegalCycleException("This instruction accepts at most "
