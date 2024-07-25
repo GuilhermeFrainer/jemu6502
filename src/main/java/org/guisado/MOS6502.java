@@ -456,18 +456,36 @@ public class MOS6502 {
                         -> this.indirectIndexedReadInstruction();
 
                 // Read-Modify-Write instructions
-                // ASL, LSR, ROL, ROR
+                // ASL, LSR, ROL, ROR, INC, DEC
                 // Accumulator addressing mode uses the same function as Implied
                 case 0x0A, 0x4A, 0x2A, 0x6A
                         -> this.impliedAddressingInstruction();
-                case 0x06, 0x46, 0x26, 0x66
+                case 0x06, 0x46, 0x26, 0x66, 0xE6, 0xC6
                         -> this.zeroPageModifyInstruction();
-                case 0x16, 0x56, 0x36, 0x76
+                case 0x16, 0x56, 0x36, 0x76, 0xF6, 0xD6
                         -> this.zeroPageIndexedModifyInstruction(this.registerX);
-                case 0x0E, 0x4E, 0x2E, 0x6E
+                case 0x0E, 0x4E, 0x2E, 0x6E, 0xEE, 0xCE
                         -> this.absoluteModifyInstruction();
-                case 0x1E, 0x5E, 0x3E, 0x7E
+                case 0x1E, 0x5E, 0x3E, 0x7E, 0xFE, 0xDE
                         -> this.absoluteIndexedModifyInstruction();
+
+                // Write instructions
+                // STA
+                case 0x85
+                    -> this.zeroPageWriteInstruction();
+                case 0x95
+                    -> this.zeroPageIndexedWriteInstruction(this.registerX);
+                case 0x8D
+                    -> this.absoluteWriteInstruction();
+                case 0x9D
+                    -> this.absoluteIndexedWriteInstruction(this.registerX);
+                case 0x99
+                    -> this.absoluteIndexedWriteInstruction(this.registerY);
+                case 0x81
+                    -> this.indexedIndirectWriteInstruction();
+                case 0x91
+                    -> this.indirectIndexedWriteInstruction();
+
                 // BRK
                 case 0x00 -> this.brkCycleByCycle();
 
@@ -535,10 +553,16 @@ public class MOS6502 {
             // CPY
             case 0xC0, 0xC4, 0xCC -> this.cpy();
 
+            // DEC
+            case 0xC6, 0xD6, 0xCE, 0xDE -> this.dec();
+
             // EOR
             case 0x49, 0x45, 0x55, 0x4D, 0x5D, 0x59, 0x41, 0x51 -> this.eor();
 
             // INCREMENT INSTRUCTIONS
+
+            // INC
+            case 0xE6, 0xF6, 0xEE, 0xFE -> this.inc();
 
             // INX
             case 0xE8 -> this.inx();
@@ -572,7 +596,12 @@ public class MOS6502 {
             // SBC
             case 0xE9, 0xE5, 0xF5, 0xED, 0xFD, 0xF9, 0xE1, 0xF1 -> this.sbc();
 
-            // TRANSFER INSTRUCTION
+            // STORE INSTRUCTIONS
+
+            // STA
+            case 0x85, 0x95, 0x8D, 0x9D, 0x99, 0x81, 0x91 -> this.sta();
+
+            // TRANSFER INSTRUCTIONS
 
             // TAX
             case 0xAA -> this.tax();
@@ -762,6 +791,21 @@ public class MOS6502 {
         }
         this.updateZeroAndNegativeFlags((byte) ((this.registerY & 0xFF) - (this.dataBus & 0xFF)));
     }
+
+    /* =
+     * D
+     === */
+
+    /**
+     * Subtracts one from the value held at a specified memory location
+     * setting the zero and negative flags as appropriate.
+     */
+    void dec() {
+        this.dataBus--;
+        this.updateZeroAndNegativeFlags(this.dataBus);
+        this.writeToMemory();
+    }
+
     /* ===
      * EOR
      ===== */
@@ -779,6 +823,16 @@ public class MOS6502 {
     /* ======================
      * INCREMENT INSTRUCTIONS
      ======================== */
+
+    /**
+     * Adds one to the value held at a specified memory location
+     * setting the zero and negative flags as appropriate.
+     */
+    void inc() {
+        this.dataBus++;
+        this.updateZeroAndNegativeFlags(this.dataBus);
+        this.writeToMemory();
+    }
 
     /**
      * Adds one to register X and sets the zero and negative flags as appropriate.
@@ -959,6 +1013,18 @@ public class MOS6502 {
         } else {
             this.accumulator = this.addWithCarry(this.accumulator, (byte) ~this.dataBus);
         }
+    }
+
+    /* ==================
+     * STORE INSTRUCTIONS
+     ==================== */
+
+    /**
+     * Stores the contents of the accumulator in memory.
+     */
+    void sta() {
+        this.dataBus = this.accumulator;
+        this.writeToMemory();
     }
 
     /* =====================
@@ -1439,6 +1505,220 @@ public class MOS6502 {
             case 6 -> this.writeToMemory();
             // "Write the new value to effective address"
             case 7 -> { }
+            default -> throw new IllegalCycleException("This instruction accepts at most "
+                    + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
+        }
+    }
+
+    /* ==================
+     * WRITE INSTRUCTIONS
+     ==================== */
+
+    /**
+     * Implements the cycle-to-cycle behavior of Zero Page write instructions.
+     * (STA, STX, STY, SAX).
+     * @throws IllegalCycleException if the instruction reaches a cycle it's not supposed to.
+     */
+    private void zeroPageWriteInstruction() throws IllegalCycleException {
+        switch (this.currentInstructionCycle) {
+            // "Fetch address, increment PC"
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.readFromMemory();
+                this.programCounter++;
+            }
+            // "Write register to effective address"
+            case 3 -> this.addressBus = (short) (this.dataBus & 0xFF);
+            default -> throw new IllegalCycleException("This instruction accepts at most "
+                    + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
+        }
+    }
+
+    /**
+     * Implements the cycle-to-cycle behavior of Zero Page Indexed write instructions.
+     * (STA, STX, STY, SAX)
+     * @param indexRegister the register to add to the zero page address.
+     * @throws IllegalCycleException if the instruction reaches a cycle it's not supposed to.
+     */
+    private void zeroPageIndexedWriteInstruction(byte indexRegister) throws IllegalCycleException {
+        switch (this.currentInstructionCycle) {
+            // "Fetch address, increment PC"
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.readFromMemory();
+                this.programCounter++;
+            }
+            // "Read from address, add index register to it"
+            case 3 -> {
+                this.addressBus = (short) (this.dataBus & 0xFF);
+                this.readFromMemory();
+            }
+            // "Write to effective address"
+            case 4 -> {
+                this.addressBus += (short) (indexRegister & 0xFF);
+                this.addressBus &= 0xFF; // The effective address is always in page zero
+            }
+            default -> throw new IllegalCycleException("This instruction accepts at most "
+                    + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
+        }
+    }
+
+    /**
+     * Implements cycle-to-cycle behavior of absolute addressing mode write instructions.
+     * (STA, STX, STY, SAX)
+     * @throws IllegalCycleException if the instruction reaches a cycle it's not supposed to.
+     */
+    private void absoluteWriteInstruction() throws IllegalCycleException {
+        switch (this.currentInstructionCycle) {
+            // "Fetch low byte of address, increment PC"
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.readFromMemory();
+                this.retainedByte = this.dataBus;
+                this.programCounter++;
+            }
+            // "Fetch high byte of address, increment PC"
+            case 3 -> {
+                this.addressBus = this.programCounter;
+                this.readFromMemory();
+                this.programCounter++;
+            }
+            // "Write register to effective address"
+            case 4 -> {
+                final int effectiveAddress = (this.dataBus << 8) | (this.retainedByte & 0xFF);
+                this.addressBus = (short) effectiveAddress;
+            }
+            default -> throw new IllegalCycleException("This instruction accepts at most "
+                    + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
+        }
+    }
+
+    /**
+     * Implements cycle-to-cycle behavior of absolute indexed addressing mode write instructions.
+     * (STA, STX, STY, SAX)
+     * @param indexRegister the register used as indexing (either X or Y).
+     * @throws IllegalCycleException if the instruction reaches a cycle it's not supposed to.
+     */
+    private void absoluteIndexedWriteInstruction(byte indexRegister) throws IllegalCycleException {
+        switch (this.currentInstructionCycle) {
+            // "Fetch low byte of address, increment PC"
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.readFromMemory();
+                this.retainedByte = this.dataBus;
+                this.programCounter++;
+            }
+            // "Fetch high byte of address, add index register to low address byte, increment PC"
+            case 3 -> {
+                this.addressBus = this.programCounter;
+                this.readFromMemory();
+                this.programCounter++;
+            }
+            // "Read from effective address, fix the high byte of effective address"
+            case 4 -> {
+                int lowByteSum = (this.retainedByte & 0xFF) + (indexRegister & 0xFF);
+                if (lowByteSum >= 0x100) {
+                    this.pageCrossed = 1;
+                    lowByteSum -= 0x100;
+                }
+                final int effectiveAddress = (this.dataBus << 8) + lowByteSum;
+                this.addressBus = (short) effectiveAddress;
+                this.readFromMemory();
+            }
+            // "Write to effective address"
+            case 5 -> {
+                if (this.pageCrossed == 1) {
+                    this.pageCrossed = 0;
+                    this.addressBus += 0x100;
+                }
+            }
+            default -> throw new IllegalCycleException("This instruction accepts at most "
+                    + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
+        }
+    }
+
+    /**
+     * Implements cycle-to-cycle behavior of indexed indirect addressing mode write instructions.
+     * (STA, SAX)
+     * @throws IllegalCycleException if the instruction reaches a cycle it's not supposed to.
+     */
+    private void indexedIndirectWriteInstruction() throws IllegalCycleException {
+        switch (this.currentInstructionCycle) {
+            // "Fetch pointer address, increment PC"
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.readFromMemory();
+                this.programCounter++;
+            }
+            // "Read from the address, add X to it"
+            case 3 -> {
+                this.addressBus = (short) (this.dataBus & 0xFF);
+                this.readFromMemory();
+            }
+            // "Fetch effective address low"
+            case 4 -> {
+                this.addressBus += (short) (this.registerX & 0xFF);
+                this.addressBus &= 0xFF; // Zero page boundary crossing not handled
+                this.readFromMemory();
+                this.retainedByte = this.dataBus;
+            }
+            // "Fetch effective address high"
+            case 5 -> {
+                this.addressBus++;
+                this.addressBus &= 0xFF; // Zero page boundary crossing not handled
+                this.readFromMemory();
+            }
+            // "Write to effective address"
+            case 6 -> {
+                this.addressBus = (short) ((this.dataBus << 8) | (this.retainedByte & 0xFF));
+            }
+            default -> throw new IllegalCycleException("This instruction accepts at most "
+                    + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
+        }
+    }
+
+    /**
+     * Implements cycle-to-cycle behavior of indirect indexed addressing mode write instructions.
+     * (STA, SHA)
+     * @throws IllegalCycleException if the instruction reaches a cycle it's not supposed to.
+     */
+    private void indirectIndexedWriteInstruction() throws IllegalCycleException {
+        switch (this.currentInstructionCycle) {
+            // "Fetch pointer address, increment PC"
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.readFromMemory();
+                this.programCounter++;
+            }
+            // "Fetch effective address low"
+            case 3 -> {
+                this.addressBus = (short) (this.dataBus & 0xFF);
+                this.readFromMemory();
+                this.retainedByte = this.dataBus;
+            }
+            // "Fetch effective address high, add Y to low byte of effective address"
+            case 4 -> {
+                this.addressBus++;
+                this.addressBus &= 0xFF; // Effective address is always fetched from zero page
+                this.readFromMemory();
+            }
+            // "Read from effective address, fix high byte of effective address"
+            case 5 -> {
+                int lowByteOfAddress = (this.retainedByte & 0xFF) + (this.registerY & 0xFF);
+                if (lowByteOfAddress >= 0x100) {
+                    this.pageCrossed = 1;
+                    lowByteOfAddress -= 0x100;
+                }
+                this.addressBus = (short) ((this.dataBus << 8) + lowByteOfAddress);
+                this.readFromMemory();
+            }
+            // "Write to effective address"
+            case 6 -> {
+                if (this.pageCrossed == 1) {
+                    this.pageCrossed = 0;
+                    this.addressBus += 0x100;
+                }
+            }
             default -> throw new IllegalCycleException("This instruction accepts at most "
                     + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
         }

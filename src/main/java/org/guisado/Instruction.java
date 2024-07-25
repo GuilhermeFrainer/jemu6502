@@ -184,6 +184,10 @@ public record Instruction(org.guisado.Instruction.AddressingMode addressingMode,
          === */
 
         // DEC
+        instructionSet[0xc6] = new Instruction(AddressingMode.ZeroPage, (byte) 0xc6, 2, 5, "DEC");
+        instructionSet[0xd6] = new Instruction(AddressingMode.ZeroPageX, (byte) 0xd6, 2, 6, "DEC");
+        instructionSet[0xce] = new Instruction(AddressingMode.Absolute, (byte) 0xce, 3, 6, "DEC");
+        instructionSet[0xde] = new Instruction(AddressingMode.AbsoluteX, (byte) 0xde, 3, 7, "DEC");
 
         /* =
          * E
@@ -206,6 +210,12 @@ public record Instruction(org.guisado.Instruction.AddressingMode addressingMode,
         /* ======================
          * INCREMENT INSTRUCTIONS
          ======================== */
+
+        // INC
+        instructionSet[0xe6] = new Instruction(AddressingMode.ZeroPage, (byte) 0xe6, 2, 5, "INC");
+        instructionSet[0xf6] = new Instruction(AddressingMode.ZeroPageX, (byte) 0xf6, 2, 6, "INC");
+        instructionSet[0xee] = new Instruction(AddressingMode.Absolute, (byte) 0xee, 3, 6, "INC");
+        instructionSet[0xfe] = new Instruction(AddressingMode.AbsoluteX, (byte) 0xfe, 3, 7, "INC");
 
         // INX
         instructionSet[0xE8] = new Instruction(AddressingMode.Implied, (byte) 0xE8, 1, 2, "INX");
@@ -301,6 +311,19 @@ public record Instruction(org.guisado.Instruction.AddressingMode addressingMode,
         instructionSet[0xf9] = new Instruction(AddressingMode.AbsoluteY, (byte) 0xf9, 3, 4, "SBC");
         instructionSet[0xe1] = new Instruction(AddressingMode.IndirectX, (byte) 0xe1, 2, 6, "SBC");
         instructionSet[0xf1] = new Instruction(AddressingMode.IndirectY, (byte) 0xf1, 2, 5, "SBC");
+
+        /* ==================
+         * STORE INSTRUCTIONS
+         ==================== */
+
+        // STA
+        instructionSet[0x85] = new Instruction(AddressingMode.ZeroPage, (byte) 0x85, 2, 3, "STA");
+        instructionSet[0x95] = new Instruction(AddressingMode.ZeroPageX, (byte) 0x95, 2, 4, "STA");
+        instructionSet[0x8d] = new Instruction(AddressingMode.Absolute, (byte) 0x8d, 3, 4, "STA");
+        instructionSet[0x9d] = new Instruction(AddressingMode.AbsoluteX, (byte) 0x9d, 3, 5, "STA");
+        instructionSet[0x99] = new Instruction(AddressingMode.AbsoluteY, (byte) 0x99, 3, 5, "STA");
+        instructionSet[0x81] = new Instruction(AddressingMode.IndirectX, (byte) 0x81, 2, 6, "STA");
+        instructionSet[0x91] = new Instruction(AddressingMode.IndirectY, (byte) 0x91, 2, 6, "STA");
 
         /* =
          * T
