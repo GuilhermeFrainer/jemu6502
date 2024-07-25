@@ -170,6 +170,17 @@ class MOS6502Test {
         return cpu;
     }
 
+    MOS6502 setUpCPUForTesting(int status, int accumulator, int dataBus, int opcode) {
+        MOS6502 cpu = new MOS6502();
+        final Instruction[] instructionSet = Instruction.initializeInstructionSet();
+
+        cpu.setStatus(status);
+        cpu.setAccumulator(accumulator);
+        cpu.setDataBus(dataBus);
+        cpu.setCurrentInstruction(instructionSet[opcode]);
+        return cpu;
+    }
+
     @Test
     void test_69_0a_e1() {
         MOS6502 cpu = setUpCPUForTesting(175, 2, 10);
@@ -216,6 +227,14 @@ class MOS6502Test {
         cpu.cmp();
         assertEquals(16, cpu.getAccumulatorAsInt());
         assertEquals(44, cpu.getStatusAsInt());
+    }
+
+    @Test
+    void test_6a_5d_58() {
+        MOS6502 cpu = setUpCPUForTesting(100, 168, 93, 0x6A);
+        cpu.ror();
+        assertEquals(84, cpu.getAccumulatorAsInt());
+        assertEquals(100, cpu.getStatusAsInt());
     }
 
     /*
@@ -509,6 +528,8 @@ class MOS6502Test {
             FileNotFoundException,
             MOS6502.IllegalCycleException {
         String[] instructions = {
+                "6a", "66", "76", "6e", "7e",
+                "2a", "26", "36", "2e", "3e",
                 "a9", "a5", "b5", "ad", "bd", "b9", "a1", "b1",
                 "00",
                 "4a", "46", "56", "4e", "5e",

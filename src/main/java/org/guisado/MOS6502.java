@@ -222,6 +222,10 @@ public class MOS6502 {
         return this.currentInstruction;
     }
 
+    protected void setCurrentInstruction(Instruction instruction) {
+        this.currentInstruction = instruction;
+    }
+
     public void setCurrentInstructionCycle(int cycle) {
         this.currentInstructionCycle = cycle;
     }
@@ -452,16 +456,17 @@ public class MOS6502 {
                         -> this.indirectIndexedReadInstruction();
 
                 // Read-Modify-Write instructions
-                // ASL, LSR
-                case 0x0A, 0x4A
+                // ASL, LSR, ROL, ROR
+                // Accumulator addressing mode uses the same function as Implied
+                case 0x0A, 0x4A, 0x2A, 0x6A
                         -> this.impliedAddressingInstruction();
-                case 0x06, 0x46
+                case 0x06, 0x46, 0x26, 0x66
                         -> this.zeroPageModifyInstruction();
-                case 0x16, 0x56
+                case 0x16, 0x56, 0x36, 0x76
                         -> this.zeroPageIndexedModifyInstruction(this.registerX);
-                case 0x0E, 0x4E
+                case 0x0E, 0x4E, 0x2E, 0x6E
                         -> this.absoluteModifyInstruction();
-                case 0x1E, 0x5E
+                case 0x1E, 0x5E, 0x3E, 0x7E
                         -> this.absoluteIndexedModifyInstruction();
                 // BRK
                 case 0x00 -> this.brkCycleByCycle();
@@ -558,6 +563,13 @@ public class MOS6502 {
             // ORA
             case 0x09, 0x05, 0x15, 0x0D, 0x1D, 0x19, 0x01, 0x11 -> this.ora();
 
+            // ROL
+            case 0x2A, 0x26, 0x36, 0x2E, 0x3E -> this.rol();
+
+            // ROR
+            case 0x6A, 0x66, 0x76, 0x6E, 0x7E -> this.ror();
+
+            // SBC
             case 0xE9, 0xE5, 0xF5, 0xED, 0xFD, 0xF9, 0xE1, 0xF1 -> this.sbc();
 
             // TRANSFER INSTRUCTION
@@ -842,6 +854,68 @@ public class MOS6502 {
     private void ora() {
         this.accumulator = (byte) ((this.accumulator & 0xFF) | (this.dataBus & 0xFF));
         this.updateZeroAndNegativeFlags(this.accumulator);
+    }
+
+    /* =====================
+     * ROTATION INSTRUCTIONS
+     ======================= */
+
+    /**
+     * Move each of the bits in either A or M one place to the left.
+     * Bit 0 is filled with the current value of the carry flag,
+     * whilst the old bit 7 becomes the new carry flag value.
+     */
+    void rol() {
+        final int carryIn = this.status & CARRY;
+        if (this.currentInstruction.addressingMode() == Instruction.AddressingMode.Accumulator) {
+            if ((this.accumulator & 0b10000000) != 0) {
+                this.setCarry();
+            } else {
+                this.unsetCarry();
+            }
+            this.accumulator <<= 1;
+            this.accumulator |= (byte) carryIn;
+        } else {
+            if ((this.dataBus & 0b10000000) != 0) {
+                this.setCarry();
+            } else {
+                this.unsetCarry();
+            }
+            this.dataBus <<= 1;
+            this.dataBus |= (byte) carryIn;
+            this.writeToMemory();
+        }
+    }
+
+    /**
+     * Move each of the bits in either A or M one place to the right.
+     * Bit 7 is filled with the current value of the carry flag,
+     * whilst the old bit 0 becomes the new carry flag value.
+     */
+    void ror() {
+        final int carryIn = this.status & CARRY;
+        if (this.currentInstruction.addressingMode() == Instruction.AddressingMode.Accumulator) {
+            if ((this.accumulator & 1) != 0) {
+                this.setCarry();
+            } else {
+                this.unsetCarry();
+            }
+            this.accumulator >>>= 1;
+            // Must zero out the first bit, cause apparently Java pads it with 1s
+            this.accumulator &= 0b01111111;
+            this.accumulator |= (byte) (carryIn << 7);
+        } else {
+            if ((this.dataBus & 1) != 0) {
+                this.setCarry();
+            } else {
+                this.unsetCarry();
+            }
+            this.dataBus >>>= 1;
+            // Must zero out the first bit, cause apparently Java pads it with 1s
+            this.dataBus &= 0b01111111;
+            this.dataBus |= (byte) (carryIn << 7);
+            this.writeToMemory();
+        }
     }
 
     /**

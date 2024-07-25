@@ -271,6 +271,24 @@ public record Instruction(org.guisado.Instruction.AddressingMode addressingMode,
         instructionSet[0x11] = new Instruction(AddressingMode.IndirectY, (byte) 0x11, 2, 5, "ORA");
 
         /* =
+         * R
+         === */
+
+        // ROL
+        instructionSet[0x2A] = new Instruction(AddressingMode.Accumulator, (byte) 0x2A, 1, 2, "ROL");
+        instructionSet[0x26] = new Instruction(AddressingMode.ZeroPage, (byte) 0x26, 2, 5, "ROL");
+        instructionSet[0x36] = new Instruction(AddressingMode.ZeroPageX, (byte) 0x36, 2, 6, "ROL");
+        instructionSet[0x2E] = new Instruction(AddressingMode.Absolute, (byte) 0x2E, 3, 6, "ROL");
+        instructionSet[0x3E] = new Instruction(AddressingMode.AbsoluteX, (byte) 0x3E, 3, 7, "ROL");
+
+        // ROR
+        instructionSet[0x6a] = new Instruction(AddressingMode.Accumulator, (byte) 0x6a, 1, 2, "ROR");
+        instructionSet[0x66] = new Instruction(AddressingMode.ZeroPage, (byte) 0x66, 2, 5, "ROR");
+        instructionSet[0x76] = new Instruction(AddressingMode.ZeroPageX, (byte) 0x76, 2, 6, "ROR");
+        instructionSet[0x6e] = new Instruction(AddressingMode.Absolute, (byte) 0x6e, 3, 6, "ROR");
+        instructionSet[0x7e] = new Instruction(AddressingMode.AbsoluteX, (byte) 0x7e, 3, 7, "ROR");
+
+        /* =
          * S
          === */
 
