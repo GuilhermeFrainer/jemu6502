@@ -470,12 +470,14 @@ public class MOS6502 {
                         -> this.absoluteIndexedModifyInstruction();
 
                 // Write instructions
-                // STA
-                case 0x85
+                // STA, STX, STY
+                case 0x85, 0x86, 0x84
                     -> this.zeroPageWriteInstruction();
-                case 0x95
+                case 0x95, 0x94
                     -> this.zeroPageIndexedWriteInstruction(this.registerX);
-                case 0x8D
+                case 0x96
+                    -> this.zeroPageIndexedWriteInstruction(this.registerY);
+                case 0x8D, 0x8E, 0x8C
                     -> this.absoluteWriteInstruction();
                 case 0x9D
                     -> this.absoluteIndexedWriteInstruction(this.registerX);
@@ -600,6 +602,12 @@ public class MOS6502 {
 
             // STA
             case 0x85, 0x95, 0x8D, 0x9D, 0x99, 0x81, 0x91 -> this.sta();
+
+            // STX
+            case 0x86, 0x96, 0x8E -> this.stx();
+
+            // STY
+            case 0x84, 0x94, 0x8C -> this.sty();
 
             // TRANSFER INSTRUCTIONS
 
@@ -1024,6 +1032,22 @@ public class MOS6502 {
      */
     void sta() {
         this.dataBus = this.accumulator;
+        this.writeToMemory();
+    }
+
+    /**
+     * Stores the contents of the X register in memory.
+     */
+    void stx() {
+        this.dataBus = this.registerX;
+        this.writeToMemory();
+    }
+
+    /**
+     * Stores the contents of the Y register in memory.
+     */
+    void sty() {
+        this.dataBus = this.registerY;
         this.writeToMemory();
     }
 

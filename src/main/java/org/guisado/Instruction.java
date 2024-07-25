@@ -325,6 +325,16 @@ public record Instruction(org.guisado.Instruction.AddressingMode addressingMode,
         instructionSet[0x81] = new Instruction(AddressingMode.IndirectX, (byte) 0x81, 2, 6, "STA");
         instructionSet[0x91] = new Instruction(AddressingMode.IndirectY, (byte) 0x91, 2, 6, "STA");
 
+        // STX
+        instructionSet[0x86] = new Instruction(AddressingMode.ZeroPage, (byte) 0x86, 2, 3, "STX");
+        instructionSet[0x96] = new Instruction(AddressingMode.ZeroPageY, (byte) 0x96, 2, 4, "STX");
+        instructionSet[0x8E] = new Instruction(AddressingMode.Absolute, (byte) 0x8E, 3, 4, "STX");
+
+        // STY
+        instructionSet[0x84] = new Instruction(AddressingMode.ZeroPage, (byte) 0x84, 2, 3, "STY");
+        instructionSet[0x94] = new Instruction(AddressingMode.ZeroPageX, (byte) 0x94, 2, 4, "STY");
+        instructionSet[0x8C] = new Instruction(AddressingMode.Absolute, (byte) 0x8C, 3, 4, "STY");
+
         /* =
          * T
          === */
