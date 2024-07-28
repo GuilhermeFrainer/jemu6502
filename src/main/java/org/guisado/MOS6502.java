@@ -518,6 +518,9 @@ public class MOS6502 {
                 // PLA, PLP
                 case 0x68, 0x28 -> this.pullRegisterCycleByCycle();
 
+                // JSR
+                case 0x20 -> this.jsrCycleByCycle();
+
                 default -> throw new UnimplementedInstructionException(
                         String.format("Opcode not implemented in tick function: 0x%02X",
                                 this.currentInstruction.opcode()));
@@ -610,6 +613,9 @@ public class MOS6502 {
 
             // JMP
             case 0x4C, 0x6C -> this.jmp();
+
+            // JSR
+            case 0x20 -> { }
 
             // LOAD INSTRUCTIONS
 
@@ -2095,6 +2101,42 @@ public class MOS6502 {
             }
             // "Pull register from stack"
             case 4 -> this.stackPop();
+            default -> throw new IllegalCycleException(this);
+        }
+    }
+
+    /**
+     * Implements cycle-to-cycle behavior of the JSR instruction.
+     * @throws IllegalCycleException if the instruction reaches a cycle it's not supposed to.
+     */
+    private void jsrCycleByCycle() throws IllegalCycleException {
+        switch (this.currentInstructionCycle) {
+            // "Fetch low address byte, increment PC"
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.readFromMemory();
+                this.retainedByte = this.dataBus;
+                this.programCounter++;
+            }
+            // "Internal operation (pre-decrement S?)"
+            case 3 -> {
+                this.stackPointer--;
+                this.stackPop();
+            }
+            // "Push PCH on stack, decrement S"
+            case 4 -> {
+                this.stackPush((byte) ((this.programCounter & 0xFF00) >> 8));
+            }
+            // "Push PCL on stack, decrement S"
+            case 5 -> {
+                this.stackPush((byte) (this.programCounter & 0xFF));
+            }
+            // "Copy low address byte to PCL, fetch high address byte to PCH"
+            case 6 -> {
+                this.addressBus = this.programCounter;
+                this.readFromMemory();
+                this.programCounter = (short) (((this.dataBus & 0xFF) << 8) | (this.retainedByte & 0xFF));
+            }
             default -> throw new IllegalCycleException(this);
         }
     }

@@ -528,6 +528,7 @@ class MOS6502Test {
             FileNotFoundException,
             MOS6502.IllegalCycleException {
         String[] instructions = {
+                "20",
                 "48", "08", "68", "28",
                 "60", "40",
                 "4c", "6c",

@@ -251,6 +251,9 @@ public record Instruction(org.guisado.Instruction.AddressingMode addressingMode,
         instructionSet[0x4C] = new Instruction(AddressingMode.Absolute, (byte) 0x4C, 3, 3, "JMP");
         instructionSet[0x6C] = new Instruction(AddressingMode.Indirect, (byte) 0x6C, 3, 5, "JMP");
 
+        // JSR
+        instructionSet[0x20] = new Instruction(AddressingMode.Absolute, (byte) 0x20, 3, 6, "JSR");
+
         /* =
          * L
          === */
