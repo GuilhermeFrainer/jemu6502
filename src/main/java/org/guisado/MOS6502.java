@@ -491,6 +491,17 @@ public class MOS6502 {
                 // BRK
                 case 0x00 -> this.brkCycleByCycle();
 
+                // Branch instructions
+                // BCC
+                case 0x90 -> this.relativeInstruction((this.status & CARRY) == 0);
+                case 0xB0 -> this.relativeInstruction((this.status & CARRY) != 0);
+                case 0xF0 -> this.relativeInstruction((this.status & ZERO) != 0);
+                case 0x30 -> this.relativeInstruction((this.status & NEGATIVE) != 0);
+                case 0xD0 -> this.relativeInstruction((this.status & ZERO) == 0);
+                case 0x10 -> this.relativeInstruction((this.status & NEGATIVE) == 0);
+                case 0x50 -> this.relativeInstruction((this.status & OVERFLOW) == 0);
+                case 0x70 -> this.relativeInstruction((this.status & OVERFLOW) != 0);
+
                 default -> throw new UnimplementedInstructionException(
                         String.format("Opcode not implemented in tick function: 0x%02X",
                                 this.currentInstruction.opcode()));
@@ -537,6 +548,9 @@ public class MOS6502 {
 
             // BRK
             case 0x00 -> this.brk();
+
+            // BRANCH INSTRUCTIONS
+            case 0x90, 0xB0, 0xF0, 0x30, 0xD0, 0x10, 0x50, 0x70 -> { }
 
             // CLEAR FLAG INSTRUCTIONS
             case 0x18 -> this.clc();
@@ -1742,6 +1756,54 @@ public class MOS6502 {
                     this.pageCrossed = 0;
                     this.addressBus += 0x100;
                 }
+            }
+            default -> throw new IllegalCycleException("This instruction accepts at most "
+                    + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
+        }
+    }
+
+    /**
+     * Implements cycle-to-cycle behavior of relative addressing mode instructions.
+     * (BCC, BCS, BEQ, BMI, BNE, BPL, BVC, BVS)
+     * @param condition determines if branch is taken.
+     * @throws IllegalCycleException if the instruction reaches a cycle it's not supposed to.
+     */
+    private void relativeInstruction(boolean condition) throws IllegalCycleException {
+        switch (this.currentInstructionCycle) {
+            // "Fetch operand, increment PC"
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.readFromMemory();
+                this.programCounter++;
+                if (condition) {
+                    this.pageCrossed = 1; // Instruction takes one more cycle if branch is taken
+                }
+            }
+            // "Fetch opcode of next instruction.
+            // If branch is taken, add operand to PCL
+            // Otherwise increment PC"
+            case 3 -> {
+                this.addressBus = this.programCounter;
+                final int pageBefore = this.programCounter & 0xFF00;
+                this.programCounter += this.dataBus;
+                final int pageAfter = this.programCounter & 0xFF00;
+                // Reverts page crossing to correct later
+                if (pageBefore != pageAfter) {
+                    this.pageCrossed = 2;
+                    this.programCounter &= 0x00FF;
+                    this.programCounter |= (short) pageBefore;
+                }
+                this.retainedByte = (byte) (pageAfter >> 8);
+                this.readFromMemory(); // Read from memory and discard
+            }
+            // "Fetch opcode of next instruction
+            // Fix PCH. If it did not change, increment PC."
+            case 4 -> {
+                this.addressBus = this.programCounter;
+                this.readFromMemory();
+                // Set high byte to contents of retained byte
+                this.programCounter &= 0xFF;
+                this.programCounter |= (short) (this.retainedByte << 8);
             }
             default -> throw new IllegalCycleException("This instruction accepts at most "
                     + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);

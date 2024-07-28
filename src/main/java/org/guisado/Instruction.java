@@ -20,7 +20,8 @@ public record Instruction(org.guisado.Instruction.AddressingMode addressingMode,
         AbsoluteY,
         Indirect,
         IndirectX,
-        IndirectY
+        IndirectY,
+        Relative
     }
 
     /**
@@ -134,6 +135,19 @@ public record Instruction(org.guisado.Instruction.AddressingMode addressingMode,
 
         // BRK
         instructionSet[0x00] = new Instruction(AddressingMode.Implied, (byte) 0x00, 1, 7, "BRK");
+
+        /* ===================
+         * BRANCH INSTRUCTIONS
+         ===================== */
+
+        instructionSet[0x90] = new Instruction(AddressingMode.Relative, (byte) 0x90, 1 ,2, "BCC");
+        instructionSet[0xB0] = new Instruction(AddressingMode.Relative, (byte) 0xB0, 1 ,2, "BCS");
+        instructionSet[0xF0] = new Instruction(AddressingMode.Relative, (byte) 0xF0, 1 ,2, "BEQ");
+        instructionSet[0x30] = new Instruction(AddressingMode.Relative, (byte) 0x30, 1 ,2, "BMI");
+        instructionSet[0xD0] = new Instruction(AddressingMode.Relative, (byte) 0xD0, 1 ,2, "BNE");
+        instructionSet[0x10] = new Instruction(AddressingMode.Relative, (byte) 0x10, 1 ,2, "BPL");
+        instructionSet[0x50] = new Instruction(AddressingMode.Relative, (byte) 0x50, 1 ,2, "BVC");
+        instructionSet[0x70] = new Instruction(AddressingMode.Relative, (byte) 0x70, 1 ,2, "BVS");
 
         /* =
          * C
