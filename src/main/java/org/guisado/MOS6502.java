@@ -431,10 +431,12 @@ public class MOS6502 {
         } else if (this.currentInstructionCycle > 1) {
             switch ((int) this.currentInstruction.opcode() & 0xFF) {
                 // Implied addressing mode only instructions
-                // INX, NOP, TAX, DEX, DEY, INY
+                // INX, NOP, DEX, DEY, INY
                 // Clear flag instructions: CLC, CLD, CLI, CLV
                 // Set flag instructions: SEC, SED, SEI
-                case 0xEA, 0xAA, 0xE8, 0x18, 0xD8, 0x58, 0xB8, 0xCA, 0x88, 0xC8, 0x38, 0xF8, 0x78
+                // Transfer instructions: TAX, TAY, TSX, TXA, TXS, TYA
+                case 0xEA, 0xAA, 0xE8, 0x18, 0xD8, 0x58, 0xB8, 0xCA, 0x88, 0xC8, 0x38, 0xF8, 0x78,
+                     0xA8, 0xBA, 0x8A, 0x9A, 0x98
                         -> this.impliedAddressingInstruction();
                 // Read instructions
                 // ADC, AND, BIT, CMP, EOR, LDA, LDX, LDY, ORA, SBC, CPX, CPY
@@ -685,6 +687,21 @@ public class MOS6502 {
 
             // TAX
             case 0xAA -> this.tax();
+
+            // TAY
+            case 0xA8 -> this.tay();
+
+            // TSX
+            case 0xBA -> this.tsx();
+
+            // TXA
+            case 0x8A -> this.txa();
+
+            // TXS
+            case 0x9A -> this.txs();
+
+            // TYA
+            case 0x98 -> this.tya();
 
             default -> throw new UnimplementedInstructionException(
                             String.format("Unimplemented instruction: 0x%02X",
@@ -1216,6 +1233,51 @@ public class MOS6502 {
     void tax() {
         this.registerX = this.accumulator;
         this.updateZeroAndNegativeFlags(this.registerX);
+    }
+
+    /**
+     * Transfers accumulator to register Y.
+     * Updates zero and negative flags as appropriate.
+     */
+    void tay() {
+        this.registerY = this.accumulator;
+        this.updateZeroAndNegativeFlags(this.accumulator);
+    }
+
+    /**
+     * Transfers stack pointer to register X.
+     * Updates the zero and negative flags as appropriate.
+     */
+    void tsx() {
+        this.registerX = this.stackPointer;
+        this.updateZeroAndNegativeFlags(this.stackPointer);
+    }
+
+    /**
+     * Transfers register X to accumulator.
+     * Updates zero and negative flags as appropriate.
+     */
+    void txa() {
+        this.accumulator = this.registerX;
+        this.updateZeroAndNegativeFlags(this.registerX);
+    }
+
+    /**
+     * Transfers register X to stack pointer.
+     * Updates zero and negative flags as appropriate.
+     */
+    void txs() {
+        this.stackPointer = this.registerX;
+        this.updateZeroAndNegativeFlags(this.registerX);
+    }
+
+    /**
+     * Transfers register Y to accumulator.
+     * Updates zero and negative flags as appropriate.
+     */
+    void tya() {
+        this.accumulator = this.registerY;
+        this.updateZeroAndNegativeFlags(this.registerY);
     }
 
     /* ====================================

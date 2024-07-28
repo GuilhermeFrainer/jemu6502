@@ -431,6 +431,21 @@ public record Instruction(org.guisado.Instruction.AddressingMode addressingMode,
         // TAX
         instructionSet[0xAA] = new Instruction(AddressingMode.Implied, (byte) 0xAA, 1, 2, "TAX");
 
+        // TAY
+        instructionSet[0xA8] = new Instruction(AddressingMode.Implied, (byte) 0xA8, 1, 2, "TAY");
+
+        // TSX
+        instructionSet[0xBA] = new Instruction(AddressingMode.Implied, (byte) 0xBA, 1, 2, "TSX");
+
+        // TXA
+        instructionSet[0x8A] = new Instruction(AddressingMode.Implied, (byte) 0x8A, 1, 2, "TXA");
+
+        // TXS
+        instructionSet[0x9A] = new Instruction(AddressingMode.Implied, (byte) 0x9A, 1, 2, "TXS");
+
+        // TYA
+        instructionSet[0x98] = new Instruction(AddressingMode.Implied, (byte) 0x98, 1, 2, "TYA");
+
         return instructionSet;
     }
 }
