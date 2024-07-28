@@ -431,9 +431,9 @@ public class MOS6502 {
         } else if (this.currentInstructionCycle > 1) {
             switch ((int) this.currentInstruction.opcode() & 0xFF) {
                 // Implied addressing mode only instructions
-                // INX, NOP, TAX
+                // INX, NOP, TAX, DEX, DEY, INY
                 // Clear flag instructions: CLC, CLD, CLI, CLV
-                case 0xEA, 0xAA, 0xE8, 0x18, 0xD8, 0x58, 0xB8
+                case 0xEA, 0xAA, 0xE8, 0x18, 0xD8, 0x58, 0xB8, 0xCA, 0x88, 0xC8
                         -> this.impliedAddressingInstruction();
                 // Read instructions
                 // ADC, AND, BIT, CMP, EOR, LDA, LDX, LDY, ORA, SBC, CPX, CPY
@@ -501,6 +501,10 @@ public class MOS6502 {
                 case 0x10 -> this.relativeInstruction((this.status & NEGATIVE) == 0);
                 case 0x50 -> this.relativeInstruction((this.status & OVERFLOW) == 0);
                 case 0x70 -> this.relativeInstruction((this.status & OVERFLOW) != 0);
+
+                // JMP
+                case 0x4C -> this.absoluteJumpInstruction();
+                case 0x6C -> this.indirectInstruction();
 
                 default -> throw new UnimplementedInstructionException(
                         String.format("Opcode not implemented in tick function: 0x%02X",
@@ -572,6 +576,12 @@ public class MOS6502 {
             // DEC
             case 0xC6, 0xD6, 0xCE, 0xDE -> this.dec();
 
+            // DEX
+            case 0xCA -> this.dex();
+
+            // DEY
+            case 0x88 -> this.dey();
+
             // EOR
             case 0x49, 0x45, 0x55, 0x4D, 0x5D, 0x59, 0x41, 0x51 -> this.eor();
 
@@ -582,6 +592,12 @@ public class MOS6502 {
 
             // INX
             case 0xE8 -> this.inx();
+
+            // INY
+            case 0xC8 -> this.iny();
+
+            // JMP
+            case 0x4C, 0x6C -> this.jmp();
 
             // LOAD INSTRUCTIONS
 
@@ -828,6 +844,24 @@ public class MOS6502 {
         this.writeToMemory();
     }
 
+    /**
+     * Subtracts one from the X register
+     * setting the zero and negative flags as appropriate.
+     */
+    void dex() {
+        this.registerX--;
+        this.updateZeroAndNegativeFlags(this.registerX);
+    }
+
+    /**
+     * Subtracts one from the value held at a specified memory location
+     * setting the zero and negative flags as appropriate.
+     */
+    void dey() {
+        this.registerY--;
+        this.updateZeroAndNegativeFlags(this.registerY);
+    }
+
     /* ===
      * EOR
      ===== */
@@ -859,9 +893,29 @@ public class MOS6502 {
     /**
      * Adds one to register X and sets the zero and negative flags as appropriate.
      */
-    private void inx() {
+    void inx() {
         this.registerX++;
         this.updateZeroAndNegativeFlags(this.registerX);
+    }
+
+    /**
+     * Adds one to the Y register,
+     * setting the zero and negative flags as appropriate.
+     */
+    void iny() {
+        this.registerY++;
+        this.updateZeroAndNegativeFlags(this.registerY);
+    }
+
+    /* =
+     * J
+     === */
+
+    /**
+     * Sets the program counter to the address specified by the operand.
+     */
+    void jmp() {
+        this.programCounter = (short) (((this.dataBus & 0xFF) << 8) | (this.retainedByte & 0xFF));
     }
 
     /* =================
@@ -871,7 +925,7 @@ public class MOS6502 {
     /**
      * Loads byte into accumulator register and updates de zero and negative flags as appropriate.
      */
-    private void lda() {
+    void lda() {
         this.accumulator = this.dataBus;
         this.updateZeroAndNegativeFlags(this.accumulator);
     }
@@ -879,7 +933,7 @@ public class MOS6502 {
     /**
      * Loads byte into register X and updates zero and negative flags as appropriate.
      */
-    private void ldx() {
+    void ldx() {
         this.registerX = this.dataBus;
         this.updateZeroAndNegativeFlags(this.registerX);
     }
@@ -887,7 +941,7 @@ public class MOS6502 {
     /**
      * Loads byte into register Y and updates zero and negative flags as appropriate.
      */
-    private void ldy() {
+    void ldy() {
         this.registerY = this.dataBus;
         this.updateZeroAndNegativeFlags(this.registerY);
     }
@@ -898,7 +952,7 @@ public class MOS6502 {
      * Bit 7 is set to 0.
      * Updates the zero and negative flags accordingly.
      */
-    private void lsr() {
+    void lsr() {
         if (this.currentInstruction.addressingMode() == Instruction.AddressingMode.Accumulator) {
             if ((this.accumulator & 1) != 0) {
                 this.setCarry();
@@ -927,7 +981,7 @@ public class MOS6502 {
      * Performs inclusive bitwise OR on the accumulator contents using data bus contents.
      * Updates zero and negative flags accordingly.
      */
-    private void ora() {
+    void ora() {
         this.accumulator = (byte) ((this.accumulator & 0xFF) | (this.dataBus & 0xFF));
         this.updateZeroAndNegativeFlags(this.accumulator);
     }
@@ -1074,7 +1128,7 @@ public class MOS6502 {
      * Updates zero and negative flags if the new value for register X
      * is either zero or negative respectively.
      */
-    private void tax() {
+    void tax() {
         this.registerX = this.accumulator;
         this.updateZeroAndNegativeFlags(this.registerX);
     }
@@ -1804,6 +1858,73 @@ public class MOS6502 {
                 // Set high byte to contents of retained byte
                 this.programCounter &= 0xFF;
                 this.programCounter |= (short) (this.retainedByte << 8);
+            }
+            default -> throw new IllegalCycleException("This instruction accepts at most "
+                    + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
+        }
+    }
+
+    /**
+     * Implements cycle-to-cycle behavior of the absolute addressing jump instruction.
+     * @throws IllegalCycleException if the instruction reaches a cycle it's not supposed to.
+     */
+    private void absoluteJumpInstruction() throws IllegalCycleException {
+        switch (this.currentInstructionCycle) {
+            // "Fetch low address byte, increment PC"
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.readFromMemory();
+                this.programCounter++;
+            }
+            // "Copy low address byte to PCL, fetch high address byte to PCH"
+            case 3 -> {
+                this.retainedByte = this.dataBus;
+                this.addressBus = this.programCounter;
+                this.readFromMemory();
+                this.programCounter++;
+            }
+            default -> throw new IllegalCycleException("This instruction accepts at most "
+                    + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
+        }
+    }
+
+    /**
+     * Implements cycle-to-cycle behavior of indirect addressing mode instructions.
+     * JMP is the only instruction to implement this addressing mode.
+     * @throws IllegalCycleException if the instruction reaches a cycle it's not supposed to.
+     */
+    private void indirectInstruction() throws IllegalCycleException {
+        switch (this.currentInstructionCycle) {
+            // "Fetch pointer address low, increment PC"
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.readFromMemory();
+                this.programCounter++;
+            }
+            // "Fetch pointer address high, increment PC"
+            case 3 -> {
+                this.retainedByte = this.dataBus;
+                this.addressBus = this.programCounter;
+                this.readFromMemory();
+                this.programCounter++;
+            }
+            // "Fetch low address to latch"
+            case 4 -> {
+                this.addressBus = (short) (((this.dataBus & 0xFF) << 8) | (this.retainedByte & 0xFF));
+                this.readFromMemory();
+            }
+            // "Fetch PCH copy latch to PCL"
+            case 5 -> {
+                this.retainedByte = this.dataBus;
+                int incrementedLowByte = (this.addressBus & 0xFF) + 1;
+                /*
+                 * Address is always fetched from the same page,
+                 * i.e., page crossing is not handled.
+                 */
+                incrementedLowByte &= 0xFF;
+                this.addressBus &= (short) 0xFF00;
+                this.addressBus |= (short) incrementedLowByte;
+                this.readFromMemory();
             }
             default -> throw new IllegalCycleException("This instruction accepts at most "
                     + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);

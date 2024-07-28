@@ -203,6 +203,12 @@ public record Instruction(org.guisado.Instruction.AddressingMode addressingMode,
         instructionSet[0xce] = new Instruction(AddressingMode.Absolute, (byte) 0xce, 3, 6, "DEC");
         instructionSet[0xde] = new Instruction(AddressingMode.AbsoluteX, (byte) 0xde, 3, 7, "DEC");
 
+        // DEX
+        instructionSet[0xCA] = new Instruction(AddressingMode.Implied, (byte) 0xCA, 1, 2, "DEX");
+
+        // DEY
+        instructionSet[0x88] = new Instruction(AddressingMode.Implied, (byte) 0x88, 1, 2, "DEY");
+
         /* =
          * E
          === */
@@ -233,6 +239,17 @@ public record Instruction(org.guisado.Instruction.AddressingMode addressingMode,
 
         // INX
         instructionSet[0xE8] = new Instruction(AddressingMode.Implied, (byte) 0xE8, 1, 2, "INX");
+
+        // INY
+        instructionSet[0xC8] = new Instruction(AddressingMode.Implied, (byte) 0xC8, 1, 2, "INY");
+
+        /* =
+         * J
+         === */
+
+        // JMP
+        instructionSet[0x4C] = new Instruction(AddressingMode.Absolute, (byte) 0x4C, 3, 3, "JMP");
+        instructionSet[0x6C] = new Instruction(AddressingMode.Indirect, (byte) 0x6C, 3, 5, "JMP");
 
         /* =
          * L
