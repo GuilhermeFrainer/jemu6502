@@ -312,8 +312,36 @@ public record Instruction(org.guisado.Instruction.AddressingMode addressingMode,
         instructionSet[0x11] = new Instruction(AddressingMode.IndirectY, (byte) 0x11, 2, 5, "ORA");
 
         /* =
+         * P
+         === */
+
+        /* =================
+         * PUSH INSTRUCTIONS
+         =================== */
+
+        // PHA
+        instructionSet[0x48] = new Instruction(AddressingMode.Implied, (byte) 0x48, 1, 3, "PHA");
+
+        // PHP
+        instructionSet[0x08] = new Instruction(AddressingMode.Implied, (byte) 0x08, 1, 3, "PHP");
+
+        /* =================
+         * PULL INSTRUCTIONS
+         =================== */
+
+        // PLA
+        instructionSet[0x68] = new Instruction(AddressingMode.Implied, (byte) 0x68, 1, 4, "PLA");
+
+        // PLP
+        instructionSet[0x28] = new Instruction(AddressingMode.Implied, (byte) 0x28, 1, 4, "PLP");
+
+        /* =
          * R
          === */
+
+        /* =====================
+         * ROTATION INSTRUCTIONS
+         ======================= */
 
         // ROL
         instructionSet[0x2A] = new Instruction(AddressingMode.Accumulator, (byte) 0x2A, 1, 2, "ROL");
@@ -328,6 +356,16 @@ public record Instruction(org.guisado.Instruction.AddressingMode addressingMode,
         instructionSet[0x76] = new Instruction(AddressingMode.ZeroPageX, (byte) 0x76, 2, 6, "ROR");
         instructionSet[0x6e] = new Instruction(AddressingMode.Absolute, (byte) 0x6e, 3, 6, "ROR");
         instructionSet[0x7e] = new Instruction(AddressingMode.AbsoluteX, (byte) 0x7e, 3, 7, "ROR");
+
+        /* ===================
+         * RETURN INSTRUCTIONS
+         ===================== */
+
+        // RTI
+        instructionSet[0x40] = new Instruction(AddressingMode.Implied, (byte) 0x40, 1, 6, "RTI");
+
+        // RTS
+        instructionSet[0x60] = new Instruction(AddressingMode.Implied, (byte) 0x60, 1, 6, "RTS");
 
         /* =
          * S

@@ -391,7 +391,7 @@ public class MOS6502 {
      */
     private void stackPop() {
         this.stackPointer++;
-        this.addressBus = (short) (STACK_PAGE + this.stackPointer);
+        this.addressBus = (short) (STACK_PAGE + (this.stackPointer & 0xFF));
         this.readFromMemory();
     }
 
@@ -492,7 +492,6 @@ public class MOS6502 {
                 case 0x00 -> this.brkCycleByCycle();
 
                 // Branch instructions
-                // BCC
                 case 0x90 -> this.relativeInstruction((this.status & CARRY) == 0);
                 case 0xB0 -> this.relativeInstruction((this.status & CARRY) != 0);
                 case 0xF0 -> this.relativeInstruction((this.status & ZERO) != 0);
@@ -505,6 +504,19 @@ public class MOS6502 {
                 // JMP
                 case 0x4C -> this.absoluteJumpInstruction();
                 case 0x6C -> this.indirectInstruction();
+
+                // RTI
+                case 0x40 -> this.rtiCycleToCycle();
+
+                // RTS
+                case 0x60 -> this.rtsCycleToCycle();
+
+                // PHA, PLP
+                case 0x48 -> this.pushRegisterCycleByCycle();
+                case 0x08 -> this.pushRegisterCycleByCycle();
+
+                // PLA, PLP
+                case 0x68, 0x28 -> this.pullRegisterCycleByCycle();
 
                 default -> throw new UnimplementedInstructionException(
                         String.format("Opcode not implemented in tick function: 0x%02X",
@@ -619,11 +631,23 @@ public class MOS6502 {
             // ORA
             case 0x09, 0x05, 0x15, 0x0D, 0x1D, 0x19, 0x01, 0x11 -> this.ora();
 
+            // PHA, PHP
+            case 0x48, 0x08 -> { }
+
+            // PLA
+            case 0x68 -> this.pla();
+
+            // PLP
+            case 0x28 -> this.plp();
+
             // ROL
             case 0x2A, 0x26, 0x36, 0x2E, 0x3E -> this.rol();
 
             // ROR
             case 0x6A, 0x66, 0x76, 0x6E, 0x7E -> this.ror();
+
+            // RTI, RTS
+            case 0x40, 0x60 -> { }
 
             // SBC
             case 0xE9, 0xE5, 0xF5, 0xED, 0xFD, 0xF9, 0xE1, 0xF1 -> this.sbc();
@@ -986,6 +1010,24 @@ public class MOS6502 {
         this.updateZeroAndNegativeFlags(this.accumulator);
     }
 
+    /**
+     * Pulls an 8 bit value from the stack and into the accumulator.
+     * Updates zero and negative flags as appropriate.
+     */
+    void pla() {
+        this.accumulator = this.dataBus;
+        this.updateZeroAndNegativeFlags(this.accumulator);
+    }
+
+    /**
+     * Pulls an 8 bit value from the stack and into the processor flags.
+     * The flags will take on new states as determined by the value pulled.
+     */
+    void plp() {
+        this.status = this.dataBus;
+        this.updateZeroAndNegativeFlags(this.status);
+    }
+
     /* =====================
      * ROTATION INSTRUCTIONS
      ======================= */
@@ -1141,42 +1183,6 @@ public class MOS6502 {
      * are extracted from this cycle-by-cycle guide of the NES dev wiki:
      * https://www.nesdev.org/6502_cpu.txt
      */
-    /**
-     * Forces interrupt request. PC and processor status are pushed to the stack
-     * and IRQ interrupt vector at $FFFE/F is loaded into PC and the break flag
-     * in the status is set to one.
-     * @throws IllegalCycleException if the instruction is called at a cycle it shouldn't be.
-     */
-    private void brkCycleByCycle() throws IllegalCycleException {
-        switch (this.currentInstructionCycle) {
-            /* "Read next instruction byte and throw it away,
-             * increment PC."
-             */
-            case 2 -> {
-                this.addressBus = this.programCounter;
-                this.readFromMemory();
-                this.programCounter++;
-            }
-            // "Push PCH on stack (with B flag set), decrement S"
-            case 3 -> this.stackPush((byte) (this.programCounter >> 8));
-            // "Push PCL on stack, decrement S"
-            case 4 -> this.stackPush((byte) (this.programCounter & 0xFF));
-            // "Push P on stack, decrement S"
-            case 5 -> this.stackPush((byte) (this.status | BREAK));
-            // "Fetch PCL"
-            case 6 -> {
-                this.addressBus = IRQ_VECTOR_LOW;
-                this.readFromMemory();
-            }
-            // "Fetch PCH"
-            case 7 -> {
-                this.retainedByte = this.dataBus;
-                this.addressBus = IRQ_VECTOR_HIGH;
-                this.readFromMemory();
-            }
-            default -> throw new IllegalCycleException(this);
-        }
-    }
 
     /**
      * Function to generically represent the cycle-to-cycle behavior of the MOS6502
@@ -1928,6 +1934,168 @@ public class MOS6502 {
             }
             default -> throw new IllegalCycleException("This instruction accepts at most "
                     + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
+        }
+    }
+
+
+    /* ==================================
+     * INSTRUCTIONS THAT ACCESS THE STACK
+     ==================================== */
+
+    /**
+     * Forces interrupt request. PC and processor status are pushed to the stack
+     * and IRQ interrupt vector at $FFFE/F is loaded into PC and the break flag
+     * in the status is set to one.
+     * @throws IllegalCycleException if the instruction is called at a cycle it shouldn't be.
+     */
+    private void brkCycleByCycle() throws IllegalCycleException {
+        switch (this.currentInstructionCycle) {
+            /* "Read next instruction byte and throw it away,
+             * increment PC."
+             */
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.readFromMemory();
+                this.programCounter++;
+            }
+            // "Push PCH on stack (with B flag set), decrement S"
+            case 3 -> this.stackPush((byte) (this.programCounter >> 8));
+            // "Push PCL on stack, decrement S"
+            case 4 -> this.stackPush((byte) (this.programCounter & 0xFF));
+            // "Push P on stack, decrement S"
+            case 5 -> this.stackPush((byte) (this.status | BREAK));
+            // "Fetch PCL"
+            case 6 -> {
+                this.addressBus = IRQ_VECTOR_LOW;
+                this.readFromMemory();
+            }
+            // "Fetch PCH"
+            case 7 -> {
+                this.retainedByte = this.dataBus;
+                this.addressBus = IRQ_VECTOR_HIGH;
+                this.readFromMemory();
+            }
+            default -> throw new IllegalCycleException(this);
+        }
+    }
+
+    /**
+     * Implements the cycle-to-cycle behavior of the RTI instruction.
+     * @throws IllegalCycleException if the instruction reaches a cycle it's not supposed to.
+     */
+    private void rtiCycleToCycle() throws IllegalCycleException {
+        switch (this.currentInstructionCycle) {
+            // "Read next instruction byte (and throw it away)"
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.readFromMemory();
+            }
+            // "Increment S"
+            case 3 -> {
+                this.stackPointer--;
+                stackPop();
+            }
+            // "Pull P from stack, increment S"
+            case 4 -> {
+                this.stackPop();
+                this.status = this.dataBus;
+            }
+            // "Pull PCL from stack, increment S"
+            case 5 -> {
+                this.stackPop();
+                this.programCounter &= (short) 0xFF00;
+                this.programCounter |= this.dataBus;
+            }
+            // "Pull PCH from stack"
+            case 6 -> {
+                this.stackPop();
+                this.programCounter &= 0x00FF;
+                this.programCounter |= (short) ((this.dataBus & 0xFF) << 8);
+            }
+            default -> throw new IllegalCycleException(this);
+        }
+    }
+
+    private void rtsCycleToCycle() throws IllegalCycleException {
+        switch (this.currentInstructionCycle) {
+            // "Read next instruction byte (and throw it away"
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.readFromMemory();
+                this.programCounter++;
+            }
+            // "Increment S"
+            case 3 -> {
+                this.stackPointer--;
+                this.stackPop();
+            }
+            // "Pull PCL from stack, increment S"
+            case 4 -> {
+                this.stackPop();
+                this.programCounter &= (short) 0xFF00;
+                this.programCounter |= (short) (this.dataBus & 0xFF);
+            }
+            // "Pull PCH from stack"
+            case 5 -> {
+                this.stackPop();
+                this.programCounter &= 0x00FF;
+                this.programCounter |= (short) ((this.dataBus & 0xFF) << 8);
+            }
+            // "Increment PC"
+            case 6 -> {
+                this.addressBus = this.programCounter;
+                this.readFromMemory();
+                this.programCounter++;
+            }
+            default -> throw new IllegalCycleException(this);
+        }
+    }
+
+    /**
+     * Implements cycle-to-cycle behavior of instructions that push a register to the stack.
+     * (PHA, PHP)
+     * @throws IllegalCycleException if the instruction reaches a cycle it's not supposed to.
+     */
+    private void pushRegisterCycleByCycle() throws IllegalCycleException {
+        switch (this.currentInstructionCycle) {
+            // "Read next instruction byte (and throw it away)
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.readFromMemory();
+            }
+            // "Push register on stack, decrement S"
+            case 3 -> {
+                // PHP pushes P with the B flag set
+                if (this.currentInstruction.opcode() == 0x08) {
+                    this.stackPush((byte) (this.status | BREAK));
+                } else {
+                    this.stackPush(this.accumulator);
+                }
+            }
+            default -> throw new IllegalCycleException(this);
+        }
+    }
+
+    /**
+     * Implements cycle-to-cycle behavior of instructions that pull a register from the stack.
+     * (PLA, PLP)
+     * @throws IllegalCycleException if the instruction reaches a cycle it's not supposed to.
+     */
+    private void pullRegisterCycleByCycle() throws IllegalCycleException {
+        switch (this.currentInstructionCycle) {
+            // "Read next instruction byte (and throw it away)"
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.readFromMemory();
+            }
+            // "Increment S"
+            case 3 -> {
+                this.stackPointer--;
+                this.stackPop();
+            }
+            // "Pull register from stack"
+            case 4 -> this.stackPop();
+            default -> throw new IllegalCycleException(this);
         }
     }
 
