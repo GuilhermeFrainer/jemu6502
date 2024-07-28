@@ -528,6 +528,7 @@ class MOS6502Test {
             FileNotFoundException,
             MOS6502.IllegalCycleException {
         String[] instructions = {
+                "38", "f8", "78",
                 "20",
                 "48", "08", "68", "28",
                 "60", "40",
@@ -560,6 +561,7 @@ class MOS6502Test {
                 "69", "65", "75", "6d", "7d", "79", "61", "71",
                 "e9", "e5", "f5", "ed", "fd", "f9", "e1", "f1",
         };
+        System.out.println("Number of instructions being tested: " + instructions.length);
         for (String instruction: instructions) {
             System.out.println("Testing opcode 0x" + instruction);
             File testFile = new File(pathToTests + "\\" + instruction + ".json");

@@ -433,7 +433,8 @@ public class MOS6502 {
                 // Implied addressing mode only instructions
                 // INX, NOP, TAX, DEX, DEY, INY
                 // Clear flag instructions: CLC, CLD, CLI, CLV
-                case 0xEA, 0xAA, 0xE8, 0x18, 0xD8, 0x58, 0xB8, 0xCA, 0x88, 0xC8
+                // Set flag instructions: SEC, SED, SEI
+                case 0xEA, 0xAA, 0xE8, 0x18, 0xD8, 0x58, 0xB8, 0xCA, 0x88, 0xC8, 0x38, 0xF8, 0x78
                         -> this.impliedAddressingInstruction();
                 // Read instructions
                 // ADC, AND, BIT, CMP, EOR, LDA, LDX, LDY, ORA, SBC, CPX, CPY
@@ -657,6 +658,17 @@ public class MOS6502 {
 
             // SBC
             case 0xE9, 0xE5, 0xF5, 0xED, 0xFD, 0xF9, 0xE1, 0xF1 -> this.sbc();
+
+            // SET FLAG INSTRUCTIONS
+
+            // SEC
+            case 0x38 -> this.sec();
+
+            // SED
+            case 0xF8 -> this.sed();
+
+            // SEI
+            case 0x78 -> this.sei();
 
             // STORE INSTRUCTIONS
 
@@ -1137,6 +1149,31 @@ public class MOS6502 {
         } else {
             this.accumulator = this.addWithCarry(this.accumulator, (byte) ~this.dataBus);
         }
+    }
+
+    /* =====================
+     * SET FLAG INSTRUCTIONS
+     ======================= */
+
+    /**
+     * Sets the carry flag to one.
+     */
+    void sec() {
+        this.status |= CARRY;
+    }
+
+    /**
+     * Sets the decimal flag to one.
+     */
+    void sed() {
+        this.status |= DECIMAL;
+    }
+
+    /**
+     * Sets the interrupt disable flag to one.
+     */
+    void sei() {
+        this.status |= INTERRUPT_DISABLE;
     }
 
     /* ==================

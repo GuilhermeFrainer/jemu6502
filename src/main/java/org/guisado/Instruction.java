@@ -384,6 +384,19 @@ public record Instruction(org.guisado.Instruction.AddressingMode addressingMode,
         instructionSet[0xe1] = new Instruction(AddressingMode.IndirectX, (byte) 0xe1, 2, 6, "SBC");
         instructionSet[0xf1] = new Instruction(AddressingMode.IndirectY, (byte) 0xf1, 2, 5, "SBC");
 
+        /* =====================
+         * SET FLAG INSTRUCTIONS
+         ======================= */
+
+        // SEC
+        instructionSet[0x38] = new Instruction(AddressingMode.Implied, (byte) 0x38, 1 , 2, "SEC");
+
+        // SED
+        instructionSet[0xF8] = new Instruction(AddressingMode.Implied, (byte) 0xF8, 1 , 2, "SED");
+
+        // SEI
+        instructionSet[0x78] = new Instruction(AddressingMode.Implied, (byte) 0x78, 1 , 2, "SEI");
+
         /* ==================
          * STORE INSTRUCTIONS
          ==================== */
