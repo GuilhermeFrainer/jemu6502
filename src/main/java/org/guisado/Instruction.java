@@ -40,8 +40,8 @@ public record Instruction(org.guisado.Instruction.AddressingMode addressingMode,
             throw new IllegalArgumentException("String length must be at most 4. Received string of length " + mnemonic.length());
         } else if (bytes > 3 || bytes < 1) {
             throw new IllegalArgumentException("'bytes' must be in the range [1, 3]. Got " + bytes);
-        } else if (cycles > 7 || cycles < 1) {
-            throw new IllegalArgumentException("´cycles' must be in the range [1, 7]. Got " + cycles);
+        } else if (cycles > 8 || cycles < 1) {
+            throw new IllegalArgumentException("´cycles' must be in the range [1, 8]. Got " + cycles);
 
         }
     }
@@ -445,6 +445,159 @@ public record Instruction(org.guisado.Instruction.AddressingMode addressingMode,
 
         // TYA
         instructionSet[0x98] = new Instruction(AddressingMode.Implied, (byte) 0x98, 1, 2, "TYA");
+
+        /* ===============
+         * ILLEGAL OPCODES
+         ================= */
+
+        /*
+         * Source for unofficial opcodes: https://www.masswerk.at/nowgobang/2021/6502-illegal-opcodes
+         */
+
+        // ALR/ASR
+        instructionSet[0x4B] = new Instruction(AddressingMode.Immediate, (byte) 0x4B, 2, 2, "ALR*");
+
+        // ANC
+        instructionSet[0x0B] = new Instruction(AddressingMode.Immediate, (byte) 0x0B, 2, 2, "ANC*");
+
+        // ANC/ANC2
+        instructionSet[0x2B] = new Instruction(AddressingMode.Immediate, (byte) 0x2B, 2, 2, "ACN*");
+
+        // ANE/XAA
+        instructionSet[0x8B] = new Instruction(AddressingMode.Immediate, (byte) 0x8B, 2, 2, "ANE*");
+
+        // ARR
+        instructionSet[0x6B] = new Instruction(AddressingMode.Immediate, (byte) 0x6B, 2, 2, "ARR*");
+
+        // DCP/DCM
+        instructionSet[0xC7] = new Instruction(AddressingMode.ZeroPage, (byte) 0xC7, 2 ,5, "DCP*");
+        instructionSet[0xD7] = new Instruction(AddressingMode.ZeroPageX, (byte) 0xD7, 2 ,6, "DCP*");
+        instructionSet[0xCF] = new Instruction(AddressingMode.Absolute, (byte) 0xCF, 3 ,6, "DCP*");
+        instructionSet[0xDF] = new Instruction(AddressingMode.AbsoluteX, (byte) 0xDF, 3 ,7, "DCP*");
+        instructionSet[0xDB] = new Instruction(AddressingMode.AbsoluteY, (byte) 0xDB, 3 ,7, "DCP*");
+        instructionSet[0xC3] = new Instruction(AddressingMode.IndirectX, (byte) 0xC3, 2 ,8, "DCP*");
+        instructionSet[0xD3] = new Instruction(AddressingMode.IndirectY, (byte) 0xD3, 2 ,8, "DCP*");
+
+        // ISC/ISB/INS
+        instructionSet[0xE7] = new Instruction(AddressingMode.ZeroPage, (byte) 0xE7, 2, 5, "ISC*");
+        instructionSet[0xF7] = new Instruction(AddressingMode.ZeroPageX, (byte) 0xF7, 2, 6, "ISC*");
+        instructionSet[0xEF] = new Instruction(AddressingMode.Absolute, (byte) 0xEF, 3, 6, "ISC*");
+        instructionSet[0xFF] = new Instruction(AddressingMode.AbsoluteX, (byte) 0xFF, 3, 7, "ISC*");
+        instructionSet[0xFB] = new Instruction(AddressingMode.AbsoluteY, (byte) 0xFB, 3, 7, "ISC*");
+        instructionSet[0xE3] = new Instruction(AddressingMode.IndirectX, (byte) 0xE3, 2, 8, "ISC*");
+        instructionSet[0xF3] = new Instruction(AddressingMode.IndirectY, (byte) 0xF3, 2, 8, "ISC*");
+
+        // LAS/LAR
+        instructionSet[0xBB] = new Instruction(AddressingMode.AbsoluteY, (byte) 0xBB, 3, 4, "LAS*");
+
+        // LAX
+        instructionSet[0xA7] = new Instruction(AddressingMode.ZeroPage, (byte) 0xA7, 2, 3, "LAX*");
+        instructionSet[0xB7] = new Instruction(AddressingMode.ZeroPageY, (byte) 0xB7, 2, 4, "LAX*");
+        instructionSet[0xAF] = new Instruction(AddressingMode.Absolute, (byte) 0xAF, 3, 4, "LAX*");
+        instructionSet[0xBF] = new Instruction(AddressingMode.AbsoluteY, (byte) 0xBF, 3, 4, "LAX*");
+        instructionSet[0xA3] = new Instruction(AddressingMode.IndirectX, (byte) 0xA3, 2, 6, "LAX*");
+        instructionSet[0xB3] = new Instruction(AddressingMode.IndirectY, (byte) 0xB3, 2, 5, "LAX*");
+
+        // LXA
+        instructionSet[0xAB] = new Instruction(AddressingMode.Immediate, (byte) 0xAB, 2, 2, "LXA*");
+
+        // RLA
+        instructionSet[0x27] = new Instruction(AddressingMode.ZeroPage, (byte) 0x27, 2, 5, "RLA*");
+        instructionSet[0x37] = new Instruction(AddressingMode.ZeroPageX, (byte) 0x37, 2, 6, "RLA*");
+        instructionSet[0x2F] = new Instruction(AddressingMode.Absolute, (byte) 0x2F, 3, 6, "RLA*");
+        instructionSet[0x3F] = new Instruction(AddressingMode.AbsoluteX, (byte) 0x3F, 3, 7, "RLA*");
+        instructionSet[0x3B] = new Instruction(AddressingMode.AbsoluteY, (byte) 0x3B, 3, 7, "RLA*");
+        instructionSet[0x23] = new Instruction(AddressingMode.IndirectX, (byte) 0x23, 2, 8, "RLA*");
+        instructionSet[0x33] = new Instruction(AddressingMode.IndirectY, (byte) 0x33, 2, 8, "RLA*");
+
+        // RRA
+        instructionSet[0x67] = new Instruction(AddressingMode.ZeroPage, (byte) 0x67, 2, 5, "RRA*");
+        instructionSet[0x77] = new Instruction(AddressingMode.ZeroPageX, (byte) 0x77, 2, 6, "RRA*");
+        instructionSet[0x6F] = new Instruction(AddressingMode.Absolute, (byte) 0x6F, 3, 6, "RRA*");
+        instructionSet[0x7F] = new Instruction(AddressingMode.AbsoluteX, (byte) 0x7F, 3, 7, "RRA*");
+        instructionSet[0x7B] = new Instruction(AddressingMode.AbsoluteY, (byte) 0x7B, 3, 7, "RRA*");
+        instructionSet[0x63] = new Instruction(AddressingMode.IndirectX, (byte) 0x63, 2, 8, "RRA*");
+        instructionSet[0x73] = new Instruction(AddressingMode.IndirectY, (byte) 0x73, 2, 8, "RRA*");
+
+        // SAX/AXS/AAX
+        instructionSet[0x87] = new Instruction(AddressingMode.ZeroPage, (byte) 0x87, 2, 3, "SAX*");
+        instructionSet[0x97] = new Instruction(AddressingMode.ZeroPageY, (byte) 0x97, 2, 4, "SAX*");
+        instructionSet[0x8F] = new Instruction(AddressingMode.Absolute, (byte) 0x8F, 3, 4, "SAX*");
+        instructionSet[0x83] = new Instruction(AddressingMode.IndirectX, (byte) 0x83, 2, 6, "SAX*");
+
+        // SBX/AXS/SAX
+        instructionSet[0xCB] = new Instruction(AddressingMode.Immediate, (byte) 0xCB, 2, 2, "SBX*");
+
+        // SHA/AHX/AXA
+        instructionSet[0x9F] = new Instruction(AddressingMode.AbsoluteY, (byte) 0x9F, 3, 5, "SHA*");
+        instructionSet[0x93] = new Instruction(AddressingMode.IndirectY, (byte) 0x93, 2, 6, "SHA*");
+
+        // SHX/A11/SXA/XAS
+        instructionSet[0x9E] = new Instruction(AddressingMode.AbsoluteY, (byte) 0x9E, 3, 5, "SHX*");
+
+        // SHY/X11/SYA/SAY
+        instructionSet[0x9C] = new Instruction(AddressingMode.AbsoluteX, (byte) 0x9C, 3, 5, "SHY*");
+
+        // SLO/ASO
+        instructionSet[0x07] = new Instruction(AddressingMode.ZeroPage, (byte) 0x07, 2, 5, "SLO*");
+        instructionSet[0x17] = new Instruction(AddressingMode.ZeroPageX, (byte) 0x17, 2, 6, "SLO*");
+        instructionSet[0x0F] = new Instruction(AddressingMode.Absolute, (byte) 0x0F, 3, 6, "SLO*");
+        instructionSet[0x1F] = new Instruction(AddressingMode.AbsoluteX, (byte) 0x1F, 3, 7, "SLO*");
+        instructionSet[0x1B] = new Instruction(AddressingMode.AbsoluteY, (byte) 0x1B, 3, 7, "SLO*");
+        instructionSet[0x03] = new Instruction(AddressingMode.IndirectX, (byte) 0x03, 2, 8, "SLO*");
+        instructionSet[0x13] = new Instruction(AddressingMode.IndirectY, (byte) 0x13, 2, 8, "SLO*");
+
+        // SRE/LSE
+        instructionSet[0x47] = new Instruction(AddressingMode.ZeroPage, (byte) 0x47, 2, 5, "SRE*");
+        instructionSet[0x57] = new Instruction(AddressingMode.ZeroPageX, (byte) 0x57, 2, 6, "SRE*");
+        instructionSet[0x4F] = new Instruction(AddressingMode.Absolute, (byte) 0x4F, 3, 6, "SRE*");
+        instructionSet[0x5F] = new Instruction(AddressingMode.AbsoluteX, (byte) 0x5F, 3, 7, "SRE*");
+        instructionSet[0x5B] = new Instruction(AddressingMode.AbsoluteY, (byte) 0x5B, 3, 7, "SRE*");
+        instructionSet[0x43] = new Instruction(AddressingMode.IndirectX, (byte) 0x43, 2, 8, "SRE*");
+        instructionSet[0x53] = new Instruction(AddressingMode.IndirectY, (byte) 0x53, 2, 8, "SRE*");
+
+        // TAS/XAS/SHS
+        instructionSet[0x9B] = new Instruction(AddressingMode.AbsoluteY, (byte) 0x9B, 3, 5, "TAS*");
+
+        // USBC/SBC
+        instructionSet[0xEB] = new Instruction(AddressingMode.Immediate, (byte) 0xEB, 2, 2, "USB*");
+
+        // NOP
+        instructionSet[0x1A] = new Instruction(AddressingMode.Implied, (byte) 0x1A, 1, 2, "NOP*");
+        instructionSet[0x3A] = new Instruction(AddressingMode.Implied, (byte) 0x3A, 1, 2, "NOP*");
+        instructionSet[0x5A] = new Instruction(AddressingMode.Implied, (byte) 0x5A, 1, 2, "NOP*");
+        instructionSet[0x7A] = new Instruction(AddressingMode.Implied, (byte) 0x7A, 1, 2, "NOP*");
+        instructionSet[0xDA] = new Instruction(AddressingMode.Implied, (byte) 0xDA, 1, 2, "NOP*");
+        instructionSet[0xFA] = new Instruction(AddressingMode.Implied, (byte) 0xFA, 1, 2, "NOP*");
+        instructionSet[0x80] = new Instruction(AddressingMode.Immediate, (byte) 0x80, 2, 2, "NOP*");
+        instructionSet[0x82] = new Instruction(AddressingMode.Immediate, (byte) 0x82, 2, 2, "NOP*");
+        instructionSet[0x89] = new Instruction(AddressingMode.Immediate, (byte) 0x89, 2, 2, "NOP*");
+        instructionSet[0xC2] = new Instruction(AddressingMode.Immediate, (byte) 0xC2, 2, 2, "NOP*");
+        instructionSet[0xE2] = new Instruction(AddressingMode.Immediate, (byte) 0xE2, 2, 2, "NOP*");
+
+        // DOP
+        instructionSet[0x04] = new Instruction(AddressingMode.ZeroPage, (byte) 0x04, 2, 3, "DOP*");
+        instructionSet[0x44] = new Instruction(AddressingMode.ZeroPage, (byte) 0x44, 2, 3, "DOP*");
+        instructionSet[0x64] = new Instruction(AddressingMode.ZeroPage, (byte) 0x64, 2, 3, "DOP*");
+
+        // TOP
+        instructionSet[0x14] = new Instruction(AddressingMode.ZeroPageX, (byte) 0x14, 2, 4, "TOP*");
+        instructionSet[0x34] = new Instruction(AddressingMode.ZeroPageX, (byte) 0x34, 2, 4, "TOP*");
+        instructionSet[0x54] = new Instruction(AddressingMode.ZeroPageX, (byte) 0x54, 2, 4, "TOP*");
+        instructionSet[0x74] = new Instruction(AddressingMode.ZeroPageX, (byte) 0x74, 2, 4, "TOP*");
+        instructionSet[0xD4] = new Instruction(AddressingMode.ZeroPageX, (byte) 0xD4, 2, 4, "TOP*");
+        instructionSet[0xF4] = new Instruction(AddressingMode.ZeroPageX, (byte) 0xF4, 2, 4, "TOP*");
+        instructionSet[0x0C] = new Instruction(AddressingMode.Absolute, (byte) 0x0C, 3, 4, "TOP*");
+        instructionSet[0x1C] = new Instruction(AddressingMode.AbsoluteX, (byte) 0x1C, 3, 4, "TOP*");
+        instructionSet[0x3C] = new Instruction(AddressingMode.AbsoluteX, (byte) 0x3C, 3, 4, "TOP*");
+        instructionSet[0x5C] = new Instruction(AddressingMode.AbsoluteX, (byte) 0x5C, 3, 4, "TOP*");
+        instructionSet[0x7C] = new Instruction(AddressingMode.AbsoluteX, (byte) 0x7C, 3, 4, "TOP*");
+        instructionSet[0xDC] = new Instruction(AddressingMode.AbsoluteX, (byte) 0xDC, 3, 4, "TOP*");
+        instructionSet[0xFC] = new Instruction(AddressingMode.AbsoluteX, (byte) 0xFC, 3, 4, "TOP*");
+
+        // JAM/KIL/HLT
+
+
 
         return instructionSet;
     }

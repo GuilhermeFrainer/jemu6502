@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Scanner;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -37,9 +39,7 @@ class MOS6502Test {
 
     @Test
     void testReadAndWrite() {
-        /**
-         * Extracted from test case 00 3f f7.
-         */
+         // Extracted from test case 00 3f f7.
         int[][] program = {{35714, 0}, {35715, 63}, {35716, 247}, {65534, 212}, {65535, 37}, {9684, 237}};
         MOS6502 cpu = new MOS6502();
 
@@ -515,9 +515,7 @@ class MOS6502Test {
     }
 
     /**
-     * Used in the process of developing the CPU.
-     * This function runs the tests for all the opcodes listed in its internal array
-     * defined at the top of the function body.
+     * This function runs the entirety of Tom Harte's test suite for the 6502.
      * @throws MOS6502.UnimplementedInstructionException if the opcode hasn't been implemented.
      * @throws FileNotFoundException if the file containing the test suite isn't found.
      * @throws MOS6502.IllegalCycleException if the instruction reaches a cycle it's not supposed to.
@@ -527,46 +525,27 @@ class MOS6502Test {
             throws MOS6502.UnimplementedInstructionException,
             FileNotFoundException,
             MOS6502.IllegalCycleException {
-        String[] instructions = {
-                "a8", "ba", "8a", "9a", "98",
-                "38", "f8", "78",
-                "20",
-                "48", "08", "68", "28",
-                "60", "40",
-                "4c", "6c",
-                "ca", "88", "c8",
-                "90", "b0", "f0", "30", "d0", "10", "50", "70",
-                "86", "96", "8e",
-                "84", "94", "8c",
-                "85", "95", "8d", "9d", "99", "81", "91",
-                "c6", "d6", "ce", "de",
-                "e6", "f6", "ee", "fe",
-                "6a", "66", "76", "6e", "7e",
-                "2a", "26", "36", "2e", "3e",
-                "a9", "a5", "b5", "ad", "bd", "b9", "a1", "b1",
-                "00",
-                "4a", "46", "56", "4e", "5e",
-                "e0", "e4", "ec",
-                "c0", "c4", "cc",
-                "18", "d8", "58", "b8",
-                "0a", "06", "16", "0e", "1e",
-                "ea",
-                "24", "2c",
-                "c9", "c5", "d5", "cd", "dd", "d9", "c1", "d1",
-                "aa", "e8",
-                "a2", "a6", "b6", "ae", "be",
-                "a0", "a4", "b4", "ac", "bc",
-                "49", "45", "55", "4d", "5d", "59", "41", "51",
-                "29", "25", "35", "2D", "3D", "39", "21", "31",
-                "09", "05", "15", "0d", "1d", "19", "01", "11",
-                "69", "65", "75", "6d", "7d", "79", "61", "71",
-                "e9", "e5", "f5", "ed", "fd", "f9", "e1", "f1",
-        };
-        System.out.println("Number of instructions being tested: " + instructions.length);
+        File testDir = new File(pathToTests);
+        File[] testFiles = testDir.listFiles();
+        for (var testFile: testFiles) {
+            String[] jamInstructions = {"02", "12", "22", "32", "42", "52", "62", "72", "92", "B2", "D2", "F2"};
+            ArrayList<String> jamInstList = new ArrayList<>(List.of(jamInstructions));
+            String fileName = testFile.getName();
+            String opcode = fileName.substring(fileName.length() - 7, fileName.length() - 5);
+            // Ignores opcodes that would jam the machine
+            if (jamInstList.contains(opcode)) {
+                continue;
+            }
+            System.out.println("Testing opcode 0x" + opcode);
+            testRunInstruction(testFile);
+        }
+        /*
         for (String instruction: instructions) {
             System.out.println("Testing opcode 0x" + instruction);
             File testFile = new File(pathToTests + "\\" + instruction + ".json");
             testRunInstruction(testFile);
         }
+
+         */
     }
 }

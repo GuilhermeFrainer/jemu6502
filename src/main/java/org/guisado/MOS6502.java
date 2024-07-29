@@ -459,18 +459,23 @@ public class MOS6502 {
                         -> this.indirectIndexedReadInstruction();
 
                 // Read-Modify-Write instructions
-                // ASL, LSR, ROL, ROR, INC, DEC
+                // ASL, LSR, ROL, ROR, INC, DEC, SLO
                 // Accumulator addressing mode uses the same function as Implied
                 case 0x0A, 0x4A, 0x2A, 0x6A
                         -> this.impliedAddressingInstruction();
-                case 0x06, 0x46, 0x26, 0x66, 0xE6, 0xC6
+                case 0x06, 0x46, 0x26, 0x66, 0xE6, 0xC6, 0x07
                         -> this.zeroPageModifyInstruction();
-                case 0x16, 0x56, 0x36, 0x76, 0xF6, 0xD6
+                case 0x16, 0x56, 0x36, 0x76, 0xF6, 0xD6, 0x17
                         -> this.zeroPageIndexedModifyInstruction(this.registerX);
-                case 0x0E, 0x4E, 0x2E, 0x6E, 0xEE, 0xCE
+                case 0x0E, 0x4E, 0x2E, 0x6E, 0xEE, 0xCE, 0x0F
                         -> this.absoluteModifyInstruction();
-                case 0x1E, 0x5E, 0x3E, 0x7E, 0xFE, 0xDE
-                        -> this.absoluteIndexedModifyInstruction();
+                case 0x1E, 0x5E, 0x3E, 0x7E, 0xFE, 0xDE, 0x1F
+                        -> this.absoluteIndexedModifyInstruction(this.registerX);
+                case 0x1B
+                    -> this.absoluteIndexedModifyInstruction(this.registerY);
+                case 0x03
+                    -> this.indexedIndirectModifyInstruction();
+
 
                 // Write instructions
                 // STA, STX, STY
@@ -702,6 +707,11 @@ public class MOS6502 {
 
             // TYA
             case 0x98 -> this.tya();
+
+            // ILLEGAL OPCODES
+
+            // SLO
+            case 0x07, 0x17, 0x0F, 0x1F, 0x1B, 0x03, 0x13 -> this.slo();
 
             default -> throw new UnimplementedInstructionException(
                             String.format("Unimplemented instruction: 0x%02X",
@@ -1280,6 +1290,25 @@ public class MOS6502 {
         this.updateZeroAndNegativeFlags(this.registerY);
     }
 
+    /* ===============
+     * ILLEGAL OPCODES
+     ================= */
+
+    /**
+     * ASL + ORA
+     */
+    void slo() {
+        if ((this.dataBus & 0b10000000) != 0) {
+            this.setCarry();
+        } else {
+            this.unsetCarry();
+        }
+        this.dataBus <<= 1;
+        this.accumulator = (byte) ((this.accumulator & 0xFF) | (this.dataBus & 0xFF));
+        this.updateZeroAndNegativeFlags(this.accumulator);
+        this.writeToMemory();
+    }
+
     /* ====================================
      * CYCLE-BY-CYCLE INSTRUCTION FUNCTIONS
      ====================================== */
@@ -1667,10 +1696,11 @@ public class MOS6502 {
     /**
      * Implements the cycle-to-cycle behavior of absolute indexed read-modify-write instructions.
      * (ASL, LSR, ROL, ROR, INC, DEC, SLO, SRE, RLA, RRA, ISB, DCP)
+     * @param indexRegister the register to use as index.
      * @throws IllegalCycleException if the instruction reaches a cycle it's not supposed to.
      * @throws UnimplementedInstructionException if this function is called by an instruction it's not supposed to.
      */
-    private void absoluteIndexedModifyInstruction()
+    private void absoluteIndexedModifyInstruction(byte indexRegister)
             throws IllegalCycleException, UnimplementedInstructionException{
         switch (this.currentInstructionCycle) {
             // "Fetch low byte of address, increment PC"
@@ -1688,7 +1718,7 @@ public class MOS6502 {
             }
             // "Read from effective address, fix the high byte of effective address"
             case 4 -> {
-                final int sum = (this.retainedByte & 0xFF) + (this.registerX & 0xFF);
+                final int sum = (this.retainedByte & 0xFF) + (indexRegister & 0xFF);
                 // Page crossing is ignored now, but will be fixed on the next cycle
                 if (sum >= 0x100) {
                     this.pageCrossed = 1;
@@ -1710,6 +1740,52 @@ public class MOS6502 {
             case 7 -> { }
             default -> throw new IllegalCycleException("This instruction accepts at most "
                     + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
+        }
+    }
+
+    /**
+     * Represents cycle-to-cycle behavior of indexed indirect read-modify-write instructions.
+     * (SLO, SRE, RLA, RRA, ISB, DCP)
+     * @throws IllegalCycleException if the instruction reaches a cycle it's not supposed to.
+     */
+    private void indexedIndirectModifyInstruction() throws IllegalCycleException {
+        switch (this.currentInstructionCycle) {
+            // "Fetch pointer address, increment PC"
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.readFromMemory();
+                this.programCounter++;
+            }
+            // "Read from the address, add X to it"
+            case 3 -> {
+                this.addressBus = (short) (this.dataBus & 0xFF);
+                this.readFromMemory();
+            }
+            // "Fetch effective address low"
+            case 4 -> {
+                this.addressBus += (short) (this.registerX & 0xFF);
+                this.addressBus &= 0xFF; // Crossing page zero is not handled
+                this.readFromMemory();
+            }
+            // "Fetch effective address high"
+            case 5 -> {
+                this.addressBus++;
+                this.addressBus &= 0xFF; // Crossing page zero is not handled
+                this.retainedByte = this.dataBus;
+                this.readFromMemory();
+            }
+            // "Read from effective address"
+            case 6 -> {
+                this.addressBus = (short) (((this.dataBus & 0xFF) << 8) | (this.retainedByte & 0xFF));
+                this.readFromMemory();
+            }
+            // "Write the value back to effective address,
+            // and do the operation on it"
+            case 7 -> this.writeToMemory();
+
+            // "Write the new value to effective address"
+            case 8 -> {/* This is left for the instruction function */}
+            default -> throw new IllegalCycleException(this);
         }
     }
 
@@ -1872,9 +1948,7 @@ public class MOS6502 {
                 this.readFromMemory();
             }
             // "Write to effective address"
-            case 6 -> {
-                this.addressBus = (short) ((this.dataBus << 8) | (this.retainedByte & 0xFF));
-            }
+            case 6 -> this.addressBus = (short) ((this.dataBus << 8) | (this.retainedByte & 0xFF));
             default -> throw new IllegalCycleException("This instruction accepts at most "
                     + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
         }
@@ -2227,9 +2301,7 @@ public class MOS6502 {
                 this.stackPush((byte) ((this.programCounter & 0xFF00) >> 8));
             }
             // "Push PCL on stack, decrement S"
-            case 5 -> {
-                this.stackPush((byte) (this.programCounter & 0xFF));
-            }
+            case 5 -> this.stackPush((byte) (this.programCounter & 0xFF));
             // "Copy low address byte to PCL, fetch high address byte to PCH"
             case 6 -> {
                 this.addressBus = this.programCounter;
