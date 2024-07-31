@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
 
@@ -39,7 +38,7 @@ class MOS6502Test {
 
     @Test
     void testReadAndWrite() {
-         // Extracted from test case 00 3f f7.
+        // Runs test case 00 3f f7.
         int[][] program = {{35714, 0}, {35715, 63}, {35716, 247}, {65534, 212}, {65535, 37}, {9684, 237}};
         MOS6502 cpu = new MOS6502();
 
@@ -521,31 +520,23 @@ class MOS6502Test {
      * @throws MOS6502.IllegalCycleException if the instruction reaches a cycle it's not supposed to.
      */
     @Test
-    void testSomeInstructions()
+    void testAllInstructions()
             throws MOS6502.UnimplementedInstructionException,
             FileNotFoundException,
             MOS6502.IllegalCycleException {
         File testDir = new File(pathToTests);
         File[] testFiles = testDir.listFiles();
         for (var testFile: testFiles) {
-            String[] jamInstructions = {"02", "12", "22", "32", "42", "52", "62", "72", "92", "B2", "D2", "F2"};
-            ArrayList<String> jamInstList = new ArrayList<>(List.of(jamInstructions));
+            ArrayList<String> jamInstructions = new ArrayList<>(List.of(
+                    "02", "12", "22", "32", "42", "52", "62", "72", "92", "b2", "d2", "f2"));
             String fileName = testFile.getName();
             String opcode = fileName.substring(fileName.length() - 7, fileName.length() - 5);
             // Ignores opcodes that would jam the machine
-            if (jamInstList.contains(opcode)) {
+            if (jamInstructions.contains(opcode)) {
                 continue;
             }
             System.out.println("Testing opcode 0x" + opcode);
             testRunInstruction(testFile);
         }
-        /*
-        for (String instruction: instructions) {
-            System.out.println("Testing opcode 0x" + instruction);
-            File testFile = new File(pathToTests + "\\" + instruction + ".json");
-            testRunInstruction(testFile);
-        }
-
-         */
     }
 }

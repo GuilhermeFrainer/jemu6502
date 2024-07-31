@@ -194,6 +194,10 @@ public class MOS6502 {
     private Instruction currentInstruction;
     private int currentInstructionCycle;
     private int currentCycle;
+    /**
+     * Necessary for certain illegal opcodes, such as ANE and LXA.
+     */
+    final private int magicConstant = 0xEE;
 
     /*
      * Stupid abstraction necessitated by two facts:
@@ -431,67 +435,82 @@ public class MOS6502 {
         } else if (this.currentInstructionCycle > 1) {
             switch ((int) this.currentInstruction.opcode() & 0xFF) {
                 // Implied addressing mode only instructions
-                // INX, NOP, DEX, DEY, INY
+                // INX, DEX, DEY, INY
                 // Clear flag instructions: CLC, CLD, CLI, CLV
                 // Set flag instructions: SEC, SED, SEI
                 // Transfer instructions: TAX, TAY, TSX, TXA, TXS, TYA
+                // NOP
                 case 0xEA, 0xAA, 0xE8, 0x18, 0xD8, 0x58, 0xB8, 0xCA, 0x88, 0xC8, 0x38, 0xF8, 0x78,
-                     0xA8, 0xBA, 0x8A, 0x9A, 0x98
+                     0xA8, 0xBA, 0x8A, 0x9A, 0x98, 0x1A, 0x3A, 0x5A, 0x7A, 0xDA, 0xFA
                         -> this.impliedAddressingInstruction();
                 // Read instructions
-                // ADC, AND, BIT, CMP, EOR, LDA, LDX, LDY, ORA, SBC, CPX, CPY
-                case 0x69, 0x29, 0xC9, 0x49, 0xA9, 0xA2, 0xA0, 0x09, 0xE9, 0xE0, 0xC0
+                // ADC, AND, BIT, CMP, EOR, LDA, LDX, LDY, ORA, SBC, CPX, CPY, NOP, DOP,
+                // TOP, ANC, ALR, ARR, ANE, TAS, LAX, LXA, SBX
+                case 0x69, 0x29, 0xC9, 0x49, 0xA9, 0xA2, 0xA0, 0x09, 0xE9, 0xE0, 0xC0,
+                     0x80, 0x82, 0x89, 0xC2, 0xE2, 0x0B, 0x2B, 0x4B, 0x6B, 0x8B, 0xAB,
+                     0xCB, 0xEB
                         -> this.immediateAddressingInstruction();
-                case 0x65, 0x25, 0x24, 0xC5, 0x45, 0xA5, 0xA6, 0xA4, 0x05, 0xE5, 0xE4, 0xC4
+                case 0x65, 0x25, 0x24, 0xC5, 0x45, 0xA5, 0xA6, 0xA4, 0x05, 0xE5, 0xE4, 0xC4,
+                     0x04, 0x44, 0x64, 0xA7
                         -> this.zeroPageReadInstruction();
-                case 0x75, 0x35, 0xD5, 0x55, 0xB5, 0xB4, 0x15, 0xF5
+                case 0x75, 0x35, 0xD5, 0x55, 0xB5, 0xB4, 0x15, 0xF5, 0x14, 0x34, 0x54, 0x74,
+                     0xD4, 0xF4
                         -> this.zeroPageIndexedReadInstruction(this.registerX);
-                case 0xB6 -> this.zeroPageIndexedReadInstruction(this.registerY); // LDY is the only one here
-                case 0x6D, 0x2D, 0x2C, 0xCD, 0x4D, 0xAD, 0xAE, 0xAC, 0x0D, 0xED, 0xEC, 0xCC
+                case 0xB6, 0xB7
+                        -> this.zeroPageIndexedReadInstruction(this.registerY);
+                case 0x6D, 0x2D, 0x2C, 0xCD, 0x4D, 0xAD, 0xAE, 0xAC, 0x0D, 0xED, 0xEC, 0xCC,
+                     0x0C, 0xAF
                         -> this.absoluteReadInstruction();
-                case 0x7D, 0x3D, 0xDD, 0x5D, 0xBD, 0xBC, 0x1D, 0xFD
+                case 0x7D, 0x3D, 0xDD, 0x5D, 0xBD, 0xBC, 0x1D, 0xFD, 0x1C, 0x3C, 0x5C, 0x7C,
+                     0xDC, 0xFC
                         -> this.absoluteIndexedReadInstruction(this.registerX);
-                case 0x79, 0x39, 0xD9, 0x59, 0xB9, 0xBE, 0x19, 0xF9
+                case 0x79, 0x39, 0xD9, 0x59, 0xB9, 0xBE, 0x19, 0xF9, 0xBF, 0xBB
                         -> this.absoluteIndexedReadInstruction(this.registerY);
-                case 0x61, 0x21, 0xC1, 0x41, 0xA1, 0x01, 0xE1
+                case 0x61, 0x21, 0xC1, 0x41, 0xA1, 0x01, 0xE1, 0xA3
                         -> this.indexedIndirectReadInstruction();
-                case 0x71, 0x31, 0xD1, 0x51, 0xB1, 0x11, 0xF1
+                case 0x71, 0x31, 0xD1, 0x51, 0xB1, 0x11, 0xF1, 0xB3
                         -> this.indirectIndexedReadInstruction();
 
                 // Read-Modify-Write instructions
-                // ASL, LSR, ROL, ROR, INC, DEC, SLO
+                // ASL, LSR, ROL, ROR, INC, DEC, SLO, RLA, SRE, RRA, DCP, ISC
                 // Accumulator addressing mode uses the same function as Implied
                 case 0x0A, 0x4A, 0x2A, 0x6A
                         -> this.impliedAddressingInstruction();
-                case 0x06, 0x46, 0x26, 0x66, 0xE6, 0xC6, 0x07
+                case 0x06, 0x46, 0x26, 0x66, 0xE6, 0xC6, 0x07, 0x27, 0x47, 0x67, 0xC7,
+                     0xE7
                         -> this.zeroPageModifyInstruction();
-                case 0x16, 0x56, 0x36, 0x76, 0xF6, 0xD6, 0x17
+                case 0x16, 0x56, 0x36, 0x76, 0xF6, 0xD6, 0x17, 0x37, 0x57, 0x77, 0xD7,
+                     0xF7
                         -> this.zeroPageIndexedModifyInstruction(this.registerX);
-                case 0x0E, 0x4E, 0x2E, 0x6E, 0xEE, 0xCE, 0x0F
+                case 0x0E, 0x4E, 0x2E, 0x6E, 0xEE, 0xCE, 0x0F, 0x2F, 0x4F, 0x6F, 0xCF,
+                     0xEF
                         -> this.absoluteModifyInstruction();
-                case 0x1E, 0x5E, 0x3E, 0x7E, 0xFE, 0xDE, 0x1F
+                case 0x1E, 0x5E, 0x3E, 0x7E, 0xFE, 0xDE, 0x1F, 0x3F, 0x5F, 0x7F, 0xDF,
+                     0xFF
                         -> this.absoluteIndexedModifyInstruction(this.registerX);
-                case 0x1B
+                case 0x1B, 0x3B, 0x5B, 0x7B, 0xDB, 0xFB
                     -> this.absoluteIndexedModifyInstruction(this.registerY);
-                case 0x03
+                case 0x03, 0x23, 0x43, 0x63, 0xC3, 0xE3
                     -> this.indexedIndirectModifyInstruction();
+                case 0x13, 0x33, 0x53, 0x73, 0xD3, 0xF3
+                    -> this.indirectIndexedModifyInstruction();
 
 
                 // Write instructions
-                // STA, STX, STY
-                case 0x85, 0x86, 0x84
+                // STA, STX, STY, SAX, SHA
+                case 0x85, 0x86, 0x84, 0x87
                     -> this.zeroPageWriteInstruction();
                 case 0x95, 0x94
                     -> this.zeroPageIndexedWriteInstruction(this.registerX);
-                case 0x96
+                case 0x96, 0x97
                     -> this.zeroPageIndexedWriteInstruction(this.registerY);
-                case 0x8D, 0x8E, 0x8C
+                case 0x8D, 0x8E, 0x8C, 0x8F
                     -> this.absoluteWriteInstruction();
                 case 0x9D
                     -> this.absoluteIndexedWriteInstruction(this.registerX);
                 case 0x99
                     -> this.absoluteIndexedWriteInstruction(this.registerY);
-                case 0x81
+                case 0x81, 0x83
                     -> this.indexedIndirectWriteInstruction();
                 case 0x91
                     -> this.indirectIndexedWriteInstruction();
@@ -528,6 +547,15 @@ public class MOS6502 {
 
                 // JSR
                 case 0x20 -> this.jsrCycleByCycle();
+
+                // SHA, SHX, SHY
+                case 0x93 -> this.shaIndirectIndexedInstruction();
+                case 0x9F -> this.shAbsoluteIndexedInstruction(this.registerY, (byte) (this.accumulator & this.registerX));
+                case 0x9E -> this.shAbsoluteIndexedInstruction(this.registerY, this.registerX);
+                case 0x9C -> this.shAbsoluteIndexedInstruction(this.registerX, this.registerY);
+
+                // TAS
+                case 0x9B -> this.tasCycleByCycle();
 
                 default -> throw new UnimplementedInstructionException(
                         String.format("Opcode not implemented in tick function: 0x%02X",
@@ -640,7 +668,9 @@ public class MOS6502 {
             case 0x4A, 0x46, 0x56, 0x4E, 0x5E -> this.lsr();
 
             // NOP
-            case 0xEA -> { /* This does nothing. */}
+            case 0xEA, 0x1A, 0x3A, 0x5A, 0x7A, 0xDA, 0xFA, 0x80, 0x82, 0x89, 0xC2,
+                 0xE2, 0x04, 0x44, 0x64, 0x14, 0x34, 0x54, 0x74, 0xD4, 0xF4, 0x0C,
+                 0x1C, 0x3C, 0x5C, 0x7C, 0xDC, 0xFC -> { /* This does nothing. */}
 
             // ORA
             case 0x09, 0x05, 0x15, 0x0D, 0x1D, 0x19, 0x01, 0x11 -> this.ora();
@@ -664,7 +694,7 @@ public class MOS6502 {
             case 0x40, 0x60 -> { }
 
             // SBC
-            case 0xE9, 0xE5, 0xF5, 0xED, 0xFD, 0xF9, 0xE1, 0xF1 -> this.sbc();
+            case 0xE9, 0xE5, 0xF5, 0xED, 0xFD, 0xF9, 0xE1, 0xF1, 0xEB -> this.sbc();
 
             // SET FLAG INSTRUCTIONS
 
@@ -710,8 +740,62 @@ public class MOS6502 {
 
             // ILLEGAL OPCODES
 
+            // ALR
+            case 0x4B -> this.alr();
+
+            // ANC, ANC2
+            case 0x0B, 0x2B -> this.anc();
+
+            // ANE
+            case 0x8B -> this.ane();
+
+            // ARR
+            case 0x6B -> this.arr();
+
+            // DCP
+            case 0xC7, 0xD7, 0xCF, 0xDF, 0xDB, 0xC3, 0xD3 -> this.dcp();
+
+            // ISC
+            case 0xE7, 0xF7, 0xEF, 0xFF, 0xFB, 0xE3, 0xF3 -> this.isc();
+
+            // LAS
+            case 0xBB -> this.las();
+
+            // LAX
+            case 0xA7, 0xB7, 0xAF, 0xBF, 0xA3, 0xB3 -> this.lax();
+
+            // LXA
+            case 0xAB -> this.lxa();
+
+            // RLA
+            case 0x27, 0x37, 0x2F, 0x3F, 0x3B, 0x23, 0x33 -> this.rla();
+
+            // RRA
+            case 0x67, 0x77, 0x6F, 0x7F, 0x7B, 0x63, 0x73 -> this.rra();
+
+            // SAX
+            case 0x87, 0x97, 0x8F, 0x83 -> this.sax();
+
+            // SBX
+            case 0xCB -> this.sbx();
+
+            // SHA
+            case 0x93, 0x9F -> {/* Behavior implemented in the cycle-by-cycle instruction*/}
+
+            // SHX
+            case 0x9E -> {/* Behavior implemented in the cycle-by-cycle instruction*/}
+
+            // SHY
+            case 0x9C -> {/* Behavior implemented in the cycle-by-cycle instruction*/}
+
             // SLO
             case 0x07, 0x17, 0x0F, 0x1F, 0x1B, 0x03, 0x13 -> this.slo();
+
+            // SRE
+            case 0x47, 0x57, 0x4F, 0x5F, 0x5B, 0x43, 0x53 -> this.sre();
+
+            // TAS
+            case 0x9B -> {/* Instruction is executed in the cycle-by-cycle function */}
 
             default -> throw new UnimplementedInstructionException(
                             String.format("Unimplemented instruction: 0x%02X",
@@ -1142,37 +1226,7 @@ public class MOS6502 {
      */
     void sbc() {
         if ((this.status & DECIMAL) != 0) {
-            final int unsignedAccumulator = this.accumulator & 0xFF;
-            final int unsignedOperand = this.dataBus & 0xFF;
-            final int carryIn = this.status & CARRY;
-            // Flags are set based on binary addition
-            final int binarySubtraction = unsignedAccumulator - unsignedOperand + carryIn - 1;
-            // Carry works in the opposite way of how it works in ADC
-            if (binarySubtraction < 0) {
-                this.unsetCarry();
-            } else {
-                this.setCarry();
-            }
-
-            final byte result = (byte) ((byte) binarySubtraction & 0xFF);
-            if (((unsignedAccumulator ^ result) & (unsignedOperand ^ result) & 0x80) != 0) {
-                this.setOverflow();
-            } else {
-                this.unsetOverflow();
-            }
-            this.updateZeroAndNegativeFlags((byte) binarySubtraction);
-
-            // Now we do proper decimal subtraction
-            final int lowNibble = (unsignedAccumulator & 0xF) - (unsignedOperand & 0xF) + carryIn - 1;
-            int subtraction = lowNibble;
-            if (lowNibble < 0) {
-                subtraction = ((lowNibble - 0x6) & 0xF) - 0x10;
-            }
-            subtraction += (unsignedAccumulator & 0xF0) - (unsignedOperand & 0xF0);
-            if (subtraction < 0) {
-                subtraction -= 0x60;
-            }
-            this.accumulator = (byte) subtraction;
+            this.accumulator = this.subtractWithCarryDecimal(this.accumulator, this.dataBus);
         } else {
             this.accumulator = this.addWithCarry(this.accumulator, (byte) ~this.dataBus);
         }
@@ -1295,7 +1349,232 @@ public class MOS6502 {
      ================= */
 
     /**
-     * ASL + ORA
+     * AND operand + LSR
+     */
+    void alr() {
+        this.accumulator &= this.dataBus;
+        if ((this.dataBus & 1) != 0) {
+            this.setCarry();
+        } else {
+            this.unsetCarry();
+        }
+        this.accumulator >>= 1;
+        this.accumulator &= 0b0111_1111;
+    }
+
+    /**
+     * AND operand + set C as ASL.
+     */
+    void anc() {
+        this.accumulator &= this.dataBus;
+        if ((this.accumulator & 0b1000_0000) != 0) {
+            this.setCarry();
+        } else {
+            this.unsetCarry();
+        }
+    }
+
+    /**
+     * (A OR constant) AND X + AND operation.
+     * Highly unstable.
+     * Constant used here is 0xEE.
+     */
+    void ane() {
+        this.accumulator = (byte) ((this.accumulator | this.magicConstant) & this.registerX & this.dataBus);
+    }
+
+    /**
+     * AND + ROR.
+     * This instruction is affected by the decimal flag.
+     * See <a href="https://www.nesdev.org/6502_cpu.txt">...</a> for details.
+     */
+    void arr() {
+        final byte carryIn = (byte) (this.status & CARRY);
+        this.accumulator &= this.dataBus;
+        final byte accumulatorBeforeROR = this.accumulator;
+        this.accumulator >>= 1;
+        this.accumulator &= 0b0111_1111;
+        this.accumulator |= (byte) (carryIn << 7);
+        if ((this.status & DECIMAL) == 0) {
+            this.accumulator |= (byte) (carryIn << 7);
+            this.updateZeroAndNegativeFlags(this.accumulator);
+            // C flag is copied from 6th bit of result
+            if ((this.accumulator & 0b0100_0000) != 0) {
+                this.setCarry();
+            } else {
+                this.unsetCarry();
+            }
+            // V flag is the result of a XOR between bits 5 and 6 of result
+            final int bit6 = (this.accumulator & 0b0100_0000) >> 5;
+            final int bit5 = (this.accumulator & 0b0010_0000) >> 4;
+            this.status &= (byte) 0b10111_1111;
+            this.status |= (byte) ((bit6 ^ bit5) << 6);
+        } else {
+            // N flag is copied from the initial C flag
+            this.status &= 0b0111_1111;
+            this.status |= (byte) (carryIn << 7);
+            // Z flag is set according to ROR result
+            if (this.accumulator == 0) {
+                this.setZero();
+            } else {
+                this.unsetZero();
+            }
+            // V flag is set if bit 6 of the accumulator changed between the AND and the ROR
+            if ((this.accumulator & 0b0100_0000) != (accumulatorBeforeROR & 0b0100_0000)) {
+                this.setOverflow();
+            } else {
+                this.unsetOverflow();
+            }
+            /*
+             * If the now nibble of the AND result, incremented by its lowest bit,
+             * is greater than 5, the low nibble in the ROR result will be incremented
+             * by 6.
+             * The high nibble will NOT be adjusted if the low nibble overflows.
+             * The high nibble works similarly, but the carry flag is set if it overflows.
+             * This is similar to how ADC works when the D flag is set.
+             * Check the source just above the function declaration for details.
+             */
+            final int lowNibbleAccumulatorBefore = accumulatorBeforeROR & 0x0F;
+            final int highNibbleAccumulatorBefore = (accumulatorBeforeROR & 0xF0) >> 4;
+
+            if ((lowNibbleAccumulatorBefore + (lowNibbleAccumulatorBefore & 1)) > 5) {
+                byte lowNibbleRORResult = (byte) (this.accumulator & 0xF);
+                lowNibbleRORResult += 6;
+                lowNibbleRORResult &= 0xF;
+                this.accumulator &= (byte) 0xF0;
+                this.accumulator |= lowNibbleRORResult;
+            }
+            if ((highNibbleAccumulatorBefore + (highNibbleAccumulatorBefore & 1)) > 5) {
+                this.setCarry();
+                this.accumulator += 0x60;
+            } else {
+                this.unsetCarry();
+            }
+        }
+    }
+
+    /**
+     * M - 1 -> M, A - M
+     */
+    void dcp() {
+        this.dataBus--;
+        this.writeToMemory();
+        if ((this.accumulator & 0xFF) >= (this.dataBus & 0xFF)) {
+            this.setCarry();
+        } else {
+            this.unsetCarry();
+        }
+        this.updateZeroAndNegativeFlags((byte) ((this.accumulator & 0xFF) - (this.dataBus & 0xFF)));
+    }
+
+    /**
+     * INC operand + SBC operand.
+     * M + 1 -> M, A - M - !C -> A
+     */
+    void isc() {
+        this.dataBus++;
+        this.writeToMemory();
+        if ((this.status & DECIMAL) == 0) {
+            this.accumulator = this.addWithCarry(this.accumulator, (byte) ~this.dataBus);
+        } else {
+            this.accumulator = this.subtractWithCarryDecimal(this.accumulator, this.dataBus);
+        }
+    }
+
+    /**
+     * M AND SP -> A, X, SP
+     */
+    void las() {
+        final byte result = (byte) (this.dataBus & this.stackPointer);
+        this.accumulator = result;
+        this.registerX = result;
+        this.stackPointer = result;
+    }
+
+    /**
+     * LDA operation + LDX operation.
+     */
+    void lax() {
+        this.accumulator = this.dataBus;
+        this.registerX = this.dataBus;
+        this.updateZeroAndNegativeFlags(this.dataBus);
+    }
+
+    /**
+     * (Magic constant OR A) AND operand in A and X.
+     * Highly unstable.
+     */
+    void lxa() {
+        final byte numberToStore = (byte) ((this.magicConstant | this.accumulator) & this.dataBus);
+        this.registerX = numberToStore;
+        this.accumulator = numberToStore;
+    }
+
+    /**
+     * ROL operand + AND operand.
+     */
+    void rla() {
+        final byte carryIn = (byte) (this.status & CARRY);
+        if ((this.dataBus & 0b10000000) != 0) {
+            this.setCarry();
+        } else {
+            this.unsetCarry();
+        }
+        this.dataBus <<= 1;
+        this.dataBus &= (byte) 0b11111110;
+        this.dataBus |= carryIn;
+        this.accumulator &= this.dataBus;
+        this.writeToMemory();
+    }
+
+    /**
+     * ROR + ADC.
+     */
+    void rra() {
+        final byte carryIn = (byte) (this.status & CARRY);
+        if ((this.dataBus & 1) != 0) {
+            this.setCarry();
+        } else {
+            this.unsetCarry();
+        }
+        this.dataBus >>= 1;
+        this.dataBus &= 0b0111_1111;
+        this.dataBus |= (byte) (carryIn << 7);
+        if ((this.status & DECIMAL) != 0) {
+            this.accumulator = this.addWithCarryDecimal(this.accumulator, this.dataBus);
+        } else {
+            this.accumulator = this.addWithCarry(this.accumulator, this.dataBus);
+        }
+        this.writeToMemory();
+    }
+
+    /**
+     * A AND X -> M
+     */
+    void sax() {
+        this.dataBus = (byte) (this.accumulator & this.registerX);
+        this.writeToMemory();
+    }
+
+    /**
+     * (A AND X) - operand -> X
+     * Sets flags like CMP.
+     */
+    void sbx() {
+        final byte difference = (byte) ((this.accumulator & this.registerX) - this.dataBus);
+        this.registerX = difference;
+        if (difference >= 0) {
+            this.setCarry();
+        } else {
+            this.unsetCarry();
+        }
+        this.updateZeroAndNegativeFlags(difference);
+    }
+
+    // THIS is where SHA, SHX and SHY functions would go.
+
+    /**
+     * ASL + ORA.
      */
     void slo() {
         if ((this.dataBus & 0b10000000) != 0) {
@@ -1308,6 +1587,31 @@ public class MOS6502 {
         this.updateZeroAndNegativeFlags(this.accumulator);
         this.writeToMemory();
     }
+
+    /**
+     * LSR + EOR operations.
+     */
+    void sre() {
+        if ((this.dataBus & 1) != 0) {
+            this.setCarry();
+        } else {
+            this.unsetCarry();
+        }
+        this.dataBus >>= 1;
+        this.dataBus &= 0b01111111;
+        this.accumulator ^= this.dataBus;
+        this.writeToMemory();
+    }
+
+    /*
+     * This is where a TAS function would go.
+     * Puts A AND X in SP and stores A AND X AND (high byte of address + 1) at address.
+     */
+
+    /*
+     * This is where a USBC function would go,
+     * but it's essentially equal to SBC.
+     */
 
     /* ====================================
      * CYCLE-BY-CYCLE INSTRUCTION FUNCTIONS
@@ -1785,6 +2089,59 @@ public class MOS6502 {
 
             // "Write the new value to effective address"
             case 8 -> {/* This is left for the instruction function */}
+            default -> throw new IllegalCycleException(this);
+        }
+    }
+
+    /**
+     * Represents cycle-to-cycle behavior of indirect indexed read-modify-write instructions.
+     * (SLO, SRE, RLA, RRA, ISB, DCP)
+     * @throws IllegalCycleException if the instruction reaches a cycle it's not supposed to.*
+     */
+    private void indirectIndexedModifyInstruction() throws IllegalCycleException {
+        switch (this.currentInstructionCycle) {
+            // "Fetch pointer address, increment PC"
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.readFromMemory();
+                this.programCounter++;
+            }
+            // "Fetch effective address low"
+            case 3 -> {
+                this.addressBus = (short) (this.dataBus & 0xFF);
+                this.readFromMemory();
+            }
+            // "Fetch effective address high,
+            // add Y  to low byte of effective address"
+            case 4 -> {
+                this.retainedByte = this.dataBus;
+                this.addressBus++;
+                this.addressBus &= 0xFF; // Address is always fetched from page 0
+                this.readFromMemory();
+            }
+            // "Read from effective address,
+            // fix high byte of effective address"
+            case 5 -> {
+                final int sum = (this.retainedByte & 0xFF) + (this.registerY & 0xFF);
+                this.addressBus = (short) (((this.dataBus & 0xFF) << 8) + (sum & 0xFF));
+                this.readFromMemory();
+                if (sum >= 0x100) {
+                    this.pageCrossed = 1;
+                }
+            }
+            // "Read from effective address"
+            case 6 -> {
+                if (this.pageCrossed == 1) {
+                    this.addressBus += 0x100;
+                    this.pageCrossed = 0;
+                }
+                this.readFromMemory();
+            }
+            // "Write the value back to effective address,
+            // and do the operation on it"
+            case 7 -> this.writeToMemory();
+            // "Write the new value to effective address"
+            case 8 -> {/* THis is left to the instruction function */}
             default -> throw new IllegalCycleException(this);
         }
     }
@@ -2312,6 +2669,178 @@ public class MOS6502 {
         }
     }
 
+    /* ==========================================
+     * OTHER CYCLE-BY-CYCLE INSTRUCTION FUNCTIONS
+     ============================================ */
+
+    /**
+     * Implements cycle-by-cycle behavior for the TAS instruction, which has a single opcode
+     * with absolute Y indexed addressing mode (0x9B).
+     * There's contradicting information on this opcode.
+     * <a href="https://www.nesdev.org/6502_cpu.txt">6502_cpu.txt</a> seems to claim that
+     * it functions just like another absolute indexed read instruction
+     * (i.e., it would run for 4 cycles by default + 1 in case of page crossing),
+     * while <a href="https://www.masswerk.at/nowgobang/2021/6502-illegal-opcodes">this website</a>
+     * claims that it just runs for 5 cycles no matter what.
+     * Looking at Tom Harte's test suite, the latter seems to be correct.
+     * The actual instruction is also executed within this function since it'd be tricky
+     * to do it in a separate function.
+     * @throws IllegalCycleException in case the instruction reaches a cycle it's not supposed to.
+     */
+    private void tasCycleByCycle() throws IllegalCycleException {
+        switch (this.currentInstructionCycle) {
+            // "Fetch low byte of address, increment PC"
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.readFromMemory();
+                this.programCounter++;
+            }
+            // "Fetch high byte of address, add index register to low address byte, increment PC"
+            case 3 -> {
+                // Retain low byte
+                this.retainedByte = this.dataBus;
+                this.addressBus = programCounter;
+                this.readFromMemory();
+                this.programCounter++;
+            }
+            // "Read from effective address, fix the high byte of effective address"
+            case 4 -> {
+                // Adds low byte of address and index register to check for page crossing
+                short sum = (short) ((short) (this.retainedByte & 0xFF) + (short) (this.registerY & 0xFF));
+                if ((sum & 0x100) != 0) {
+                    this.pageCrossed = 1;
+                }
+                this.addressBus = (short) (this.dataBus << 8 | (short) (sum & 0xFF));
+                this.readFromMemory();
+            }
+            // "Re-read from effective address"
+            // Only run if there's page crossing
+            case 5 -> {
+                this.stackPointer = (byte) (this.accumulator & this.registerX);
+                final int highByteAddress = (this.addressBus & 0xFF00) >> 8;
+                this.dataBus = (byte) ((highByteAddress + 1) & this.registerX & this.accumulator);
+                // The value to be stored is also copied onto the high byte of the address bus
+                // if a page is crossed
+                if (this.pageCrossed == 1) {
+                    this.pageCrossed = 0;
+                    this.addressBus &= 0x00FF;
+                    this.addressBus |= (short) (this.dataBus << 8);
+                }
+                this.writeToMemory();
+            }
+
+            default -> throw new IllegalCycleException("This instruction accepts at most "
+                    + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
+        }
+    }
+
+    /**
+     * Implements cycle-to-cycle behavior for SHA, SHX and SHY for absolute indexed addressing mode.
+     * This is necessary because these instructions might also affect the high byte of the address.
+     * See <a href="https://www.nesdev.org/6502_cpu.txt">6502_cpu.txt</a> for reference.
+     * @param indexRegister register to be used as indexing.
+     * @param valueToBeAnded value to be anded with the high byte of address + 1.
+     *                       A AND X for SHA, X for SHX and Y for SHY.
+     * @throws IllegalCycleException if the instruction reaches a cycle it's not supposed to.
+     */
+    private void shAbsoluteIndexedInstruction(byte indexRegister, byte valueToBeAnded) throws IllegalCycleException {
+        {
+            switch (this.currentInstructionCycle) {
+                // "Fetch low byte of address, increment PC"
+                case 2 -> {
+                    this.addressBus = this.programCounter;
+                    this.readFromMemory();
+                    this.programCounter++;
+                }
+                // "Fetch high byte of address, add index register to low address byte,
+                // increment PC"
+                case 3 -> {
+                    this.retainedByte = this.dataBus;
+                    this.addressBus = this.programCounter;
+                    this.readFromMemory();
+                    this.programCounter++;
+                }
+                // "Read from effective address,
+                // fix the high byte of effective address"
+                case 4 -> {
+                    final int sum = (this.retainedByte & 0xFF) + (indexRegister & 0xFF);
+                    if (sum >= 0x100) {
+                        this.pageCrossed = 1;
+                    }
+                    this.addressBus = (short) ((short) (this.dataBus << 8) | (sum & 0xFF));
+                    this.readFromMemory();
+                }
+                // "Write to effective address"
+                case 5 -> {
+                    final byte addressHighByte = (byte) ((this.addressBus & 0xFF00) >> 8);
+                    this.dataBus = (byte) (valueToBeAnded & (addressHighByte + 1));
+                    // These instructions write the value to be saved to memory
+                    // onto the high byte of the address if there's page crossings.
+                    if (this.pageCrossed == 1) {
+                        this.pageCrossed = 0;
+                        this.addressBus &= 0x00FF;
+                        this.addressBus |= (short) (this.dataBus << 8);
+                    }
+                    this.writeToMemory();
+                }
+                default -> throw new IllegalCycleException("This instruction accepts at most "
+                        + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
+            }
+        }
+    }
+
+    /**
+     * Implements cycle-to-cycle behavior for SHA for indirect indexed addressing mode.
+     * This is necessary because this opcode irregularly write to the address bus when there's a page crossing.
+     * See <a href="https://www.nesdev.org/6502_cpu.txt">6502_cpu.txt</a> for reference.
+     * @throws IllegalCycleException if the instruction reaches a cycle it's not supposed to.
+     */
+    private void shaIndirectIndexedInstruction() throws IllegalCycleException {
+        switch (this.currentInstructionCycle) {
+            // "Fetch pointer address, increment PC"
+            case 2 -> {
+                this.addressBus = this.programCounter;
+                this.readFromMemory();
+                this.programCounter++;
+            }
+            // "Fetch effective address low"
+            case 3 -> {
+                this.addressBus = (short) (this.dataBus & 0xFF);
+                this.readFromMemory();
+                this.retainedByte = this.dataBus;
+            }
+            // "Fetch effective address high, add Y to low byte of effective address"
+            case 4 -> {
+                this.addressBus++;
+                this.addressBus &= 0xFF; // Effective address is always fetched from zero page
+                this.readFromMemory();
+            }
+            // "Read from effective address, fix high byte of effective address"
+            case 5 -> {
+                int lowByteOfAddress = (this.retainedByte & 0xFF) + (this.registerY & 0xFF);
+                if (lowByteOfAddress >= 0x100) {
+                    this.pageCrossed = 1;
+                    lowByteOfAddress -= 0x100;
+                }
+                this.addressBus = (short) ((this.dataBus << 8) + lowByteOfAddress);
+                this.readFromMemory();
+            }
+            // "Write to effective address"
+            case 6 -> {
+                final byte addressHighByte = (byte) ((this.addressBus & 0xFF00) >> 8);
+                this.dataBus = (byte) (this.accumulator & this.registerX & (addressHighByte + 1));
+                if (this.pageCrossed == 1) {
+                    this.pageCrossed = 0;
+                    this.addressBus &= 0x00FF;
+                    this.addressBus |= (short) (this.dataBus << 8);
+                }
+                this.writeToMemory();
+            }
+            default -> throw new IllegalCycleException("This instruction accepts at most "
+                    + this.currentInstruction.cycles() + ", received " + this.currentInstructionCycle);
+        }
+    }
+
     /* ================
      * HELPER FUNCTIONS
      ================== */
@@ -2406,6 +2935,52 @@ public class MOS6502 {
             this.unsetOverflow();
         }
         return (byte) sum;
+    }
+
+    /**
+     * Performs subtraction between the two operands.
+     * One of them should be the accumulator.
+         * Used as a helper function for the SBC instruction when the CPU is in decimal mode.
+     * Updates the carry and overflow flags.
+     * For an explanation on how this works, check this:
+     * <a href="http://www.6502.org/tutorials/decimal_mode.html#A">...</a>
+     * @param x accumulator
+     * @param y number to add to the accumulator.
+     *          It's always the byte in the data bus.
+     * @return result of the addition.
+     */
+    private byte subtractWithCarryDecimal(byte x, byte y) {
+        final int unsignedAccumulator = x & 0xFF;
+        final int unsignedOperand = y & 0xFF;
+        final int carryIn = this.status & CARRY;
+        // Flags are set based on binary addition
+        final int binarySubtraction = unsignedAccumulator - unsignedOperand + carryIn - 1;
+        // Carry works in the opposite way of how it works in ADC
+        if (binarySubtraction < 0) {
+            this.unsetCarry();
+        } else {
+            this.setCarry();
+        }
+
+        final byte result = (byte) ((byte) binarySubtraction & 0xFF);
+        if (((unsignedAccumulator ^ result) & (unsignedOperand ^ result) & 0x80) != 0) {
+            this.setOverflow();
+        } else {
+            this.unsetOverflow();
+        }
+        this.updateZeroAndNegativeFlags((byte) binarySubtraction);
+
+        // Now we do proper decimal subtraction
+        final int lowNibble = (unsignedAccumulator & 0xF) - (unsignedOperand & 0xF) + carryIn - 1;
+        int subtraction = lowNibble;
+        if (lowNibble < 0) {
+            subtraction = ((lowNibble - 0x6) & 0xF) - 0x10;
+        }
+        subtraction += (unsignedAccumulator & 0xF0) - (unsignedOperand & 0xF0);
+        if (subtraction < 0) {
+            subtraction -= 0x60;
+        }
+        return (byte) subtraction;
     }
 
     /**
