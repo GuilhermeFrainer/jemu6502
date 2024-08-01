@@ -243,22 +243,6 @@ public class MOS6502 {
      ==================== */
 
     /**
-     * Used when an instruction receives an addressing mode that isn't implemented for it.
-     */
-    public class IllegalAddressingModeException extends Exception {
-        private IllegalAddressingModeException() {}
-        private IllegalAddressingModeException(String message) {
-            super(message);
-        }
-        private IllegalAddressingModeException(MOS6502 cpu) {
-            super(
-              "Instruction " + cpu.currentInstruction.mnemonic() +
-                      " received unimplemented addressing mode " +
-                      cpu.currentInstruction.addressingMode().toString());
-        }
-    }
-
-    /**
      * Used when an exception reaches a cycle it's not meant to.
      * E.g. an instruction which is supposed to run for 5 cycles runs for 6.
      */
@@ -589,214 +573,74 @@ public class MOS6502 {
      */
     protected void executeOpcode(byte opcode) throws UnimplementedInstructionException {
         switch ((int) opcode & 0xFF) {
-            // ADC
             case 0x69, 0x65, 0x75, 0x6D, 0x7D, 0x79, 0x61, 0x71 -> this.adc();
-
-            // AND
             case 0x29, 0x25, 0x35, 0x2D, 0x3D, 0x39, 0x21, 0x31 -> this.and();
-
-            // ASL
             case 0x0A, 0x06, 0x16, 0x0E, 0x1E -> this.asl();
-
-            // BIT
             case 0x24, 0x2C -> this.bit();
-
-            // BRK
             case 0x00 -> this.brk();
-
-            // BRANCH INSTRUCTIONS
-            case 0x90, 0xB0, 0xF0, 0x30, 0xD0, 0x10, 0x50, 0x70 -> { }
-
-            // CLEAR FLAG INSTRUCTIONS
+            case 0x90, 0xB0, 0xF0, 0x30, 0xD0, 0x10, 0x50, 0x70 -> { } // Branch instructions
             case 0x18 -> this.clc();
             case 0xD8 -> this.cld();
             case 0x58 -> this.cli();
             case 0xB8 -> this.clv();
-
-            // COMPARISON INSTRUCTIONS
-
-            // CMP
             case 0xC9, 0xC5, 0xD5, 0xCD, 0xDD, 0xD9, 0xC1, 0xD1 -> this.cmp();
-
-            // CPX
             case 0xE0, 0xE4, 0xEC -> this.cpx();
-
-            // CPY
             case 0xC0, 0xC4, 0xCC -> this.cpy();
-
-            // DEC
             case 0xC6, 0xD6, 0xCE, 0xDE -> this.dec();
-
-            // DEX
             case 0xCA -> this.dex();
-
-            // DEY
             case 0x88 -> this.dey();
-
-            // EOR
             case 0x49, 0x45, 0x55, 0x4D, 0x5D, 0x59, 0x41, 0x51 -> this.eor();
-
-            // INCREMENT INSTRUCTIONS
-
-            // INC
             case 0xE6, 0xF6, 0xEE, 0xFE -> this.inc();
-
-            // INX
             case 0xE8 -> this.inx();
-
-            // INY
             case 0xC8 -> this.iny();
-
-            // JMP
             case 0x4C, 0x6C -> this.jmp();
-
-            // JSR
-            case 0x20 -> { }
-
-            // LOAD INSTRUCTIONS
-
-            // LDA
+            case 0x20 -> { } // JSR
             case 0xA9, 0xA5, 0xB5, 0xAD, 0xBD, 0xB9, 0xA1, 0xB1 -> this.lda();
-
-            // LDX
             case 0xA2, 0xA6, 0xB6, 0xAE, 0xBE -> this.ldx();
-
-            // LDY
             case 0xA0, 0xA4, 0xB4, 0xAC, 0xBC -> this.ldy();
-
-            // LSR
             case 0x4A, 0x46, 0x56, 0x4E, 0x5E -> this.lsr();
-
-            // NOP
-            case 0xEA, 0x1A, 0x3A, 0x5A, 0x7A, 0xDA, 0xFA, 0x80, 0x82, 0x89, 0xC2,
+            case 0xEA, 0x1A, 0x3A, 0x5A, 0x7A, 0xDA, 0xFA, 0x80, 0x82, 0x89, 0xC2, // NOP
                  0xE2, 0x04, 0x44, 0x64, 0x14, 0x34, 0x54, 0x74, 0xD4, 0xF4, 0x0C,
-                 0x1C, 0x3C, 0x5C, 0x7C, 0xDC, 0xFC -> { /* This does nothing. */}
-
-            // ORA
+                 0x1C, 0x3C, 0x5C, 0x7C, 0xDC, 0xFC -> { }
             case 0x09, 0x05, 0x15, 0x0D, 0x1D, 0x19, 0x01, 0x11 -> this.ora();
-
-            // PHA, PHP
-            case 0x48, 0x08 -> { }
-
-            // PLA
+            case 0x48, 0x08 -> { } // PHA, PHP
             case 0x68 -> this.pla();
-
-            // PLP
             case 0x28 -> this.plp();
-
-            // ROL
             case 0x2A, 0x26, 0x36, 0x2E, 0x3E -> this.rol();
-
-            // ROR
             case 0x6A, 0x66, 0x76, 0x6E, 0x7E -> this.ror();
-
-            // RTI, RTS
-            case 0x40, 0x60 -> { }
-
-            // SBC
+            case 0x40, 0x60 -> { } // RTI, RTS
             case 0xE9, 0xE5, 0xF5, 0xED, 0xFD, 0xF9, 0xE1, 0xF1, 0xEB -> this.sbc();
-
-            // SET FLAG INSTRUCTIONS
-
-            // SEC
             case 0x38 -> this.sec();
-
-            // SED
             case 0xF8 -> this.sed();
-
-            // SEI
             case 0x78 -> this.sei();
-
-            // STORE INSTRUCTIONS
-
-            // STA
             case 0x85, 0x95, 0x8D, 0x9D, 0x99, 0x81, 0x91 -> this.sta();
-
-            // STX
             case 0x86, 0x96, 0x8E -> this.stx();
-
-            // STY
             case 0x84, 0x94, 0x8C -> this.sty();
-
-            // TRANSFER INSTRUCTIONS
-
-            // TAX
             case 0xAA -> this.tax();
-
-            // TAY
             case 0xA8 -> this.tay();
-
-            // TSX
             case 0xBA -> this.tsx();
-
-            // TXA
             case 0x8A -> this.txa();
-
-            // TXS
             case 0x9A -> this.txs();
-
-            // TYA
             case 0x98 -> this.tya();
-
-            // ILLEGAL OPCODES
-
-            // ALR
             case 0x4B -> this.alr();
-
-            // ANC, ANC2
             case 0x0B, 0x2B -> this.anc();
-
-            // ANE
             case 0x8B -> this.ane();
-
-            // ARR
             case 0x6B -> this.arr();
-
-            // DCP
             case 0xC7, 0xD7, 0xCF, 0xDF, 0xDB, 0xC3, 0xD3 -> this.dcp();
-
-            // ISC
             case 0xE7, 0xF7, 0xEF, 0xFF, 0xFB, 0xE3, 0xF3 -> this.isc();
-
-            // LAS
             case 0xBB -> this.las();
-
-            // LAX
             case 0xA7, 0xB7, 0xAF, 0xBF, 0xA3, 0xB3 -> this.lax();
-
-            // LXA
             case 0xAB -> this.lxa();
-
-            // RLA
             case 0x27, 0x37, 0x2F, 0x3F, 0x3B, 0x23, 0x33 -> this.rla();
-
-            // RRA
             case 0x67, 0x77, 0x6F, 0x7F, 0x7B, 0x63, 0x73 -> this.rra();
-
-            // SAX
             case 0x87, 0x97, 0x8F, 0x83 -> this.sax();
-
-            // SBX
             case 0xCB -> this.sbx();
-
-            // SHA
-            case 0x93, 0x9F -> {/* Behavior implemented in the cycle-by-cycle instruction*/}
-
-            // SHX
-            case 0x9E -> {/* Behavior implemented in the cycle-by-cycle instruction*/}
-
-            // SHY
-            case 0x9C -> {/* Behavior implemented in the cycle-by-cycle instruction*/}
-
-            // SLO
+            case 0x93, 0x9F -> { } // SHA
+            case 0x9E -> { } // SHX
+            case 0x9C -> { } // SHY
             case 0x07, 0x17, 0x0F, 0x1F, 0x1B, 0x03, 0x13 -> this.slo();
-
-            // SRE
             case 0x47, 0x57, 0x4F, 0x5F, 0x5B, 0x43, 0x53 -> this.sre();
-
-            // TAS
-            case 0x9B -> {/* Instruction is executed in the cycle-by-cycle function */}
-
+            case 0x9B -> { } // TAS
             default -> throw new UnimplementedInstructionException(
                             String.format("Unimplemented instruction: 0x%02X",
                                     this.currentInstruction.opcode()));
@@ -1113,7 +957,7 @@ public class MOS6502 {
                 this.unsetCarry();
             }
             this.accumulator >>= 1;
-            this.accumulator &= 0b01111111;
+            this.accumulator &= 0b01111111; // Zeroes out most significant bit
         } else {
             if ((this.dataBus & 1) != 0) {
                 this.setCarry();
@@ -1121,7 +965,7 @@ public class MOS6502 {
                 this.unsetCarry();
             }
             this.dataBus >>= 1;
-            this.dataBus &= 0b01111111;
+            this.dataBus &= 0b01111111; // Zeroes out most significant bit
             this.writeToMemory();
         }
     }
@@ -1359,7 +1203,7 @@ public class MOS6502 {
             this.unsetCarry();
         }
         this.accumulator >>= 1;
-        this.accumulator &= 0b0111_1111;
+        this.accumulator &= 0b0111_1111; // Zeroes out most significant bit
     }
 
     /**
@@ -1393,7 +1237,7 @@ public class MOS6502 {
         this.accumulator &= this.dataBus;
         final byte accumulatorBeforeROR = this.accumulator;
         this.accumulator >>= 1;
-        this.accumulator &= 0b0111_1111;
+        this.accumulator &= 0b0111_1111; // Zeroes out most significant bit
         this.accumulator |= (byte) (carryIn << 7);
         if ((this.status & DECIMAL) == 0) {
             this.accumulator |= (byte) (carryIn << 7);
@@ -1411,7 +1255,7 @@ public class MOS6502 {
             this.status |= (byte) ((bit6 ^ bit5) << 6);
         } else {
             // N flag is copied from the initial C flag
-            this.status &= 0b0111_1111;
+            this.status &= 0b0111_1111; // Zeroes out most significant bit
             this.status |= (byte) (carryIn << 7);
             // Z flag is set according to ROR result
             if (this.accumulator == 0) {
@@ -1538,7 +1382,7 @@ public class MOS6502 {
             this.unsetCarry();
         }
         this.dataBus >>= 1;
-        this.dataBus &= 0b0111_1111;
+        this.dataBus &= 0b0111_1111; // Zeroes out most significant bit
         this.dataBus |= (byte) (carryIn << 7);
         if ((this.status & DECIMAL) != 0) {
             this.accumulator = this.addWithCarryDecimal(this.accumulator, this.dataBus);
@@ -1598,7 +1442,7 @@ public class MOS6502 {
             this.unsetCarry();
         }
         this.dataBus >>= 1;
-        this.dataBus &= 0b01111111;
+        this.dataBus &= 0b01111111; // Zeroes out most significant bit
         this.accumulator ^= this.dataBus;
         this.writeToMemory();
     }
