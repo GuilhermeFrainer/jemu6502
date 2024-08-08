@@ -1,5 +1,8 @@
 package org.guisado;
 
+import java.util.HashSet;
+import java.util.List;
+
 /**
  * Represents the MOS6502.
  * Registers should all be interpreted as unsigned 8-bit ints.
@@ -268,6 +271,17 @@ public class MOS6502 {
         }
     }
 
+    /**
+     * Used when the CPU hits a JAM opcode.
+     * (0x02, 0x12, 0x22, 0x32, 0x42, 0x52, 0x62, 0x72, 0x92, 0xB2, 0xD2, 0xF2)
+     */
+    public class JamException extends Exception {
+        private JamException() {}
+        private JamException(MOS6502 cpu) {
+                super("CPU hit JAM opcode: " + (cpu.currentInstruction.opcode() & 0xFF));
+        }
+    }
+
     public MOS6502() {
         this.programCounter = 0;
         this.stackPointer = STARTING_STACK_POINTER;
@@ -387,7 +401,7 @@ public class MOS6502 {
      * Executes the next cycle.
      */
     public void tick()
-            throws UnimplementedInstructionException, IllegalCycleException {
+            throws UnimplementedInstructionException, IllegalCycleException, JamException {
         /*
          * The last cycle in an instruction.
          * Moved here (from the bottom of this function)
@@ -541,6 +555,12 @@ public class MOS6502 {
                 // TAS
                 case 0x9B -> this.tasCycleByCycle();
 
+                // JAM
+                case 0x02, 0x12, 0x22, 0x32, 0x42, 0x52, 0x62, 0x72, 0x92, 0xB2, 0xD2, 0xF2 -> {
+                    this.programCounter--;
+                    throw new JamException(this);
+                }
+
                 default -> throw new UnimplementedInstructionException(
                         String.format("Opcode not implemented in tick function: 0x%02X",
                                 this.currentInstruction.opcode()));
@@ -571,7 +591,7 @@ public class MOS6502 {
      * @param opcode opcode to execute.
      * @throws UnimplementedInstructionException in case the opcode hasn't been implemented.
      */
-    protected void executeOpcode(byte opcode) throws UnimplementedInstructionException {
+    protected void executeOpcode(byte opcode) throws UnimplementedInstructionException, JamException {
         switch ((int) opcode & 0xFF) {
             case 0x69, 0x65, 0x75, 0x6D, 0x7D, 0x79, 0x61, 0x71 -> this.adc();
             case 0x29, 0x25, 0x35, 0x2D, 0x3D, 0x39, 0x21, 0x31 -> this.and();
@@ -641,6 +661,8 @@ public class MOS6502 {
             case 0x07, 0x17, 0x0F, 0x1F, 0x1B, 0x03, 0x13 -> this.slo();
             case 0x47, 0x57, 0x4F, 0x5F, 0x5B, 0x43, 0x53 -> this.sre();
             case 0x9B -> { } // TAS
+            case 0x02, 0x12, 0x22, 0x32, 0x42, 0x52, 0x62, 0x72, 0x92, 0xB2, 0xD2, 0xF2
+                -> throw new JamException(this);
             default -> throw new UnimplementedInstructionException(
                             String.format("Unimplemented instruction: 0x%02X",
                                     this.currentInstruction.opcode()));

@@ -596,7 +596,18 @@ public record Instruction(org.guisado.Instruction.AddressingMode addressingMode,
         instructionSet[0xFC] = new Instruction(AddressingMode.AbsoluteX, (byte) 0xFC, 3, 4, "TOP*");
 
         // JAM/KIL/HLT
-
+        instructionSet[0x02] = new Instruction(AddressingMode.Implied, (byte) 0x02, 2, 2, "JAM*");
+        instructionSet[0x12] = new Instruction(AddressingMode.Implied, (byte) 0x12, 2, 2, "JAM*");
+        instructionSet[0x22] = new Instruction(AddressingMode.Implied, (byte) 0x22, 2, 2, "JAM*");
+        instructionSet[0x32] = new Instruction(AddressingMode.Implied, (byte) 0x32, 2, 2, "JAM*");
+        instructionSet[0x42] = new Instruction(AddressingMode.Implied, (byte) 0x42, 2, 2, "JAM*");
+        instructionSet[0x52] = new Instruction(AddressingMode.Implied, (byte) 0x52, 2, 2, "JAM*");
+        instructionSet[0x62] = new Instruction(AddressingMode.Implied, (byte) 0x62, 2, 2, "JAM*");
+        instructionSet[0x72] = new Instruction(AddressingMode.Implied, (byte) 0x72, 2, 2, "JAM*");
+        instructionSet[0x92] = new Instruction(AddressingMode.Implied, (byte) 0x92, 2, 2, "JAM*");
+        instructionSet[0xB2] = new Instruction(AddressingMode.Implied, (byte) 0xB2, 2, 2, "JAM*");
+        instructionSet[0xD2] = new Instruction(AddressingMode.Implied, (byte) 0xD2, 2, 2, "JAM*");
+        instructionSet[0xF2] = new Instruction(AddressingMode.Implied, (byte) 0xF2, 2, 2, "JAM*");
 
 
         return instructionSet;

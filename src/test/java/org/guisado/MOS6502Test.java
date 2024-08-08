@@ -386,12 +386,16 @@ class MOS6502Test {
         Instruction instruction = instructionSet[(int) opcode & 0xFF];
 
         for (int i = 0; i < instruction.cycles() + cpu.getPageCrossed(); i++) {
-            cpu.tick();
-            logArray.add(new Log(
-                    cpu.getAddressBus(),
-                    cpu.getDataBus(),
-                    cpu.getReadWritePin()
-            ));
+            try {
+                cpu.tick();
+                logArray.add(new Log(
+                        cpu.getAddressBus(),
+                        cpu.getDataBus(),
+                        cpu.getReadWritePin()
+                ));
+            } catch (MOS6502.JamException e) {
+                System.out.println("CPU jammed.");
+            }
         }
         return logArray;
     }
@@ -527,14 +531,8 @@ class MOS6502Test {
         File testDir = new File(pathToTests);
         File[] testFiles = testDir.listFiles();
         for (var testFile: testFiles) {
-            ArrayList<String> jamInstructions = new ArrayList<>(List.of(
-                    "02", "12", "22", "32", "42", "52", "62", "72", "92", "b2", "d2", "f2"));
             String fileName = testFile.getName();
             String opcode = fileName.substring(fileName.length() - 7, fileName.length() - 5);
-            // Ignores opcodes that would jam the machine
-            if (jamInstructions.contains(opcode)) {
-                continue;
-            }
             System.out.println("Testing opcode 0x" + opcode);
             testRunInstruction(testFile);
         }
