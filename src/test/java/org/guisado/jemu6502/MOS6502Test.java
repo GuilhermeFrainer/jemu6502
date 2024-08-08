@@ -1,4 +1,4 @@
-package org.guisado;
+package org.guisado.jemu6502;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Scanner;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -393,9 +392,7 @@ class MOS6502Test {
                         cpu.getDataBus(),
                         cpu.getReadWritePin()
                 ));
-            } catch (MOS6502.JamException e) {
-                System.out.println("CPU jammed.");
-            }
+            } catch (MOS6502.JamException e) { }
         }
         return logArray;
     }
@@ -530,11 +527,12 @@ class MOS6502Test {
             MOS6502.IllegalCycleException {
         File testDir = new File(pathToTests);
         File[] testFiles = testDir.listFiles();
+        System.out.println("Testing all opcodes.");
         for (var testFile: testFiles) {
             String fileName = testFile.getName();
             String opcode = fileName.substring(fileName.length() - 7, fileName.length() - 5);
-            System.out.println("Testing opcode 0x" + opcode);
             testRunInstruction(testFile);
         }
+        System.out.println("Tests successful.");
     }
 }

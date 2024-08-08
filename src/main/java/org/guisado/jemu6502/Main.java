@@ -1,4 +1,4 @@
-package org.guisado;
+package org.guisado.jemu6502;
 
 public class Main {
     public static void main(String[] args)

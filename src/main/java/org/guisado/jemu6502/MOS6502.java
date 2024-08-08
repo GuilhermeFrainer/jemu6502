@@ -1,7 +1,4 @@
-package org.guisado;
-
-import java.util.HashSet;
-import java.util.List;
+package org.guisado.jemu6502;
 
 /**
  * Represents the MOS6502.

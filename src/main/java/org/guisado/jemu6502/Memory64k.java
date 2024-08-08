@@ -1,4 +1,4 @@
-package org.guisado;
+package org.guisado.jemu6502;
 
 public class Memory64k implements Memory {
     private final byte[] ram;

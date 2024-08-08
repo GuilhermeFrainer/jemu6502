@@ -1,9 +1,9 @@
-package org.guisado;
+package org.guisado.jemu6502;
 
 /**
  * Represents an instruction.
  */
-public record Instruction(org.guisado.Instruction.AddressingMode addressingMode, byte opcode, int bytes, int cycles,
+public record Instruction(org.guisado.jemu6502.Instruction.AddressingMode addressingMode, byte opcode, int bytes, int cycles,
                           String mnemonic) {
     /**
      * Represents different memory addressing modes for instructions.

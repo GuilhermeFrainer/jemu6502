@@ -1,4 +1,4 @@
-package org.guisado;
+package org.guisado.jemu6502;
 
 /**
  * Interface used to represent the MOS6502's memory.
